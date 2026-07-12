@@ -1,7 +1,7 @@
 # VCC Conformance Suite (§21)
 
 Status: **Built (v0.2)** · Data: 2026-07-12 · Isola VCC, sotto-blocco G.
-Fonti: [master §21](../repositioning/master-prompt-vcc-first.md), [conformance-plan](./conformance-plan.md), [verifier-guide](./verifier-guide.md), [assurance-model §5.1](./assurance-model.md).
+Fonti: [verifier-guide](./verifier-guide.md), [assurance-model §5.1](./assurance-model.md).
 
 > This page documents the **conformance corpus** and the `vcc test` runner. A verifier is **VCC-v0.2 conformant** if, given the published corpus, it produces the pinned outcome on every **positive** vector (accept) and every **negative** vector (reject on the exact axis under test).
 >

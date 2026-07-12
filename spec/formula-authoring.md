@@ -1,6 +1,6 @@
 # Making a Formula Certifiable
 
-**Who this is for.** A CalcFleet contributor adding formula #4 (and beyond) to the certifiable registry. Three pilots exist (`personal-loan-calculator`, `compound-interest-calculator`, `home-affordability-calculator`); this is the recipe they followed. Identity rules live in [ADR-003](../adr/ADR-003-formula-identity.md), numeric rules in [ADR-002](../adr/ADR-002-numeric-semantics.md), the fleet-wide rollout order in the [migration plan](./migration-plan.md).
+**Who this is for.** A CalcFleet contributor adding formula #4 (and beyond) to the certifiable registry. Three pilots exist (`personal-loan-calculator`, `compound-interest-calculator`, `home-affordability-calculator`); this is the recipe they followed. Identity rules live in [ADR-003](../adr/ADR-003-formula-identity.md), numeric rules in [ADR-002](../adr/ADR-002-numeric-semantics.md).
 
 ## Prerequisites (hard gates)
 

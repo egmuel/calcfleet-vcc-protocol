@@ -28,7 +28,7 @@ Access note: in production the `/api/v1` surface sits behind the RapidAPI proxy 
     "statement": {
       // Convenience view — human-readable, NOT the thing you verify.
       "specVersion": "0.2",
-      "type": "https://vcc.dev/statement/calculation/v0.2",
+      "type": "https://calcfleet.com/vcc/statement/calculation/v0.2",
       "subject": { "id": "urn:vcc:calculation:sha256:<hex64>", "kind": "deterministic-calculation" },
       "issuer": { "id": "https://calcfleet.com", "name": "CalcFleet", "keyDiscovery": "https://calcfleet.com/.well-known/vcc-issuer.json" },
       "formula": { "slug": "personal-loan-calculator", "version": "1.0.0", "digest": { "algorithm": "sha-256", "value": "<hex64>" }, "...": "..." },
@@ -125,4 +125,4 @@ There is deliberately **no single `verified` boolean**, anywhere. A signature ca
 
 ## Limits
 
-A VCC is not a government approval, a license, an audit, or a compliance attestation of any kind. It proves the issuance and integrity of one calculation — nothing about whether the inputs were truthful or the formula appropriate for your purpose. If you share certificates, read [privacy](./privacy.md) first; if you verify them for a living, read the [verifier guide](./verifier-guide.md).
+A VCC is not a government approval, a license, an audit, or a compliance attestation of any kind. It proves the issuance and integrity of one calculation — nothing about whether the inputs were truthful or the formula appropriate for your purpose. If you share certificates, read [privacy profiles](./privacy-profiles.md) first — a VCC is a bearer document carrying every declared numeric input in the clear, with no redaction or encryption yet; if you verify them for a living, read the [verifier guide](./verifier-guide.md).

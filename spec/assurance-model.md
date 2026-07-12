@@ -2,7 +2,7 @@
 
 Status: **Draft v0.3-track** · 2026-07-12 · Formalizes the assurance surface already shipped in VCC v0.2 (`docs/vcc/spec-v0.2.md` §6–§7, `src/lib/vcc/verify-l1.ts`, `verify-l2.ts`). No code or format change; this document defines the 9-axis assurance vector of §31.7 and maps it onto the 6/9 axes the reference implementation computes today, restates the 9 verification states of §30, and states precisely what a signature proves and does not prove (§3.21/§3.22).
 
-Source of truth for status claims: `docs/site-audit/vcc-standard-readiness-audit.md` §31.7, §30, §7.
+Source of truth for status claims: the internal VCC standard-readiness audit (§31.7, §30, §7).
 
 ---
 
@@ -25,7 +25,7 @@ Each axis answers one independently-falsifiable question. Status: **FATTO** (com
 | 5 | **Dataset resolvability** | Can each declared dataset snapshot be resolved by digest? | **FATTO** | L2 `datasetsAvailable`+`datasetsDigestMatch`; `dataset-unavailable` state (ADR-005 §2) |
 | 6 | **Reproduction** | Did re-execution reproduce every certified output? | **FATTO** | L2 7-state status + `differences[]` field-by-field (`verify-l2.ts`) |
 | 7 | **Runtime attestation** | Is there proof of *how/where* the runtime ran (TEE / provenance)? | **MANCANTE** | Only the self-declared `runtimeProfile` string; no attestation, not even an extension point |
-| 8 | **Auditor review** | Did an independent auditor review and countersign? | **MANCANTE** | No auditor role, no axis, no second signature in use (DSSE multi-sig exists but unused — ADR-001 §4; see `trust-model.md` §2.5) |
+| 8 | **Auditor review** | Did an independent auditor review and countersign? | **MANCANTE** (mechanism present) | No auditor role and no axis yet, but the verifier now evaluates every signature on a multi-signature envelope, so the countersignature slot the axis needs already verifies (see `trust-model.md` §2.9; ADR-001 §4) |
 | 9 | **Policy compliance** | Was a business/regulatory policy evaluated? | **MANCANTE** | No "policy evaluated / not evaluated" state anywhere (this is the §30 gap below) |
 
 **6 of 9 axes ship.** The three missing axes are exactly the three that require *other parties* (a runtime attester, an auditor, a policy authority) — i.e. they are blocked on the role de-fusion in `trust-model.md`, not on cryptography.
@@ -40,7 +40,7 @@ This section is normative and MUST be reflected verbatim in intent on any surfac
 
 ### 3.1 A valid VCC signature **proves**
 
-1. **Origin**: the statement was signed by the private key whose public half is published for `keyid` in the issuer's keyset (axis 1 + 2).
+1. **Origin**: the statement was signed by the private key whose public half is published for `keyid` in the issuer's keyset (axis 1 + 2) — *and* that keyset is bound to the claimed issuer (`issuerIdentityBound`: `keyset.issuer === statement.issuer.id`). A valid signature by a keyset **not** bound to the named issuer is reported separately and proves origin for no one.
 2. **Integrity**: not one byte of the statement changed after signing — the payload is the RFC 8785 (JCS) canonical form and `subject.id` is its SHA-256 (axes: `intact`; `verify-l1.ts:92-112`).
 3. **Binding**: the receipt names *which* formula version, *which* validated inputs, *which* outputs, *which* dataset versions, and *which* numeric profile were involved (statement fields, all covered by the signature).
 4. **Reproducibility — only when axis 6 says so and only "by whoever re-ran it"**: that re-executing the *pinned formula version* on the *same inputs* yields the *same outputs under the declared numeric profile* (`spec-v0.2.md` §7; §7 definition of "Reproducible").
@@ -66,7 +66,7 @@ The master requires nine separately-rendered states. Below: each state, its ship
 | 1 | Document well-formed (*Statement well-formed*) | Computed, not surfaced as a distinct state | `checks.envelopeSchema/payloadDecodes/statementSchema` | Folded into "Intact / Altered or malformed" — should be its own state |
 | 2 | Signature valid | **FATTO** | `checks.signature` | Row "Signature → valid Ed25519 signature" |
 | 3 | Issuer identity resolved (*Issuer identified*) | PARZIALE | `checks.keyKnown` | Shown as key-id known/unknown, not framed resolved/unresolved |
-| 4 | Signing key active **at signing time** (*Key active*) | **DIVERGENT** | `issuerKeyStatus` (current) | Current status shown; `issuedAt` is **not** compared to `validFrom/validUntil`. Implemented semantics = "trusted at verification time", not "active at signing time" (`verify-l1.ts:139-145`) |
+| 4 | Signing key active **at signing time** (*Key active*) | **FATTO** | `keyValidAtIssuance` + `issuerKeyStatus` | `issuedAt` is now compared to the signing key's `validFrom/validUntil` (`keyValidAtIssuance`), reported separately from current `issuerKeyStatus`. A receipt signed inside the window keeps its signature validity even after the key later expires |
 | 5 | Statement intact | **FATTO** | canonicalization + `statementId` | Badge "Intact" + integrity rows |
 | 6 | Formula package resolved (*Formula resolved*) | PARZIALE | L2 `formulaAvailable`/digest | No L1-side "manifest fetched & digest matches" shown when L2 is off |
 | 7 | Dataset snapshot resolved (*Dataset resolved*) | PARZIALE | L2 dataset checks | Same as #6; digests shown, resolution state implicit |
@@ -75,11 +75,12 @@ The master requires nine separately-rendered states. Below: each state, its ship
 
 **Compliant strength to preserve**: there is *no* single "Verified" anywhere (deliberate, `verify/page.tsx:48-49`). The §30 ordering (Issuer → Calculation → Formula → Inputs → Output → Signature → Key status → Reproduction → Datasets → Policy → Limitations) is not yet the render order (signature currently precedes content; inputs/outputs sit in collapsed `<details>`); that is a UI reorder, not a format change.
 
-## 5. Two divergences worth a spec decision (not a code hotfix)
+## 5. One divergence worth a spec decision (not a code hotfix)
 
 1. **`authentic` currently subsumes `intact`.** `cryptographicValidity = every(9 checks)`, which includes schema + canonicalization + id (`verify-l1.ts:136`). So `authentic` fails on pure *integrity/format* defects too — the axes are separated *in presentation* but not *orthogonal in computation* (audit §4.2). §7 wants "Signature valid" and "Statement intact" independent. Resolution: report `signatureVerifies` (axis 1) separately from the integrity checks, keeping `authentic` as their conjunction for the summary.
-2. **"Key active at signing time" is not computed.** The keyset carries `validFrom/validUntil` but no check compares them to `issuedAt`. Adding it makes state #4 truthful; it is a verifier addition, not a format change (audit §3, §7).
+
+**Resolved since the first draft**: *"key active at signing time" is now computed* — the verifier compares `issuedAt` to the signing key's `validFrom/validUntil` window and reports `keyValidAtIssuance` as a top-level axis, making state #4 truthful (a verifier addition, not a format change). *Issuer-identity binding is now an explicit axis* — `issuerIdentityBound` (keyset issuer === `statement.issuer.id`) is computed separately from `cryptographicValidity`, so a valid signature by a keyset not bound to the claimed issuer no longer reads as trust in that issuer.
 
 ## 6. What this document is NOT
 
-It does not define the trust *policy* (that is `trust-model.md` §2.7-2.8), the key *lifecycle* (`key-rotation.md`, ADR-004, §31.5), or privacy assurance (`privacy.md`, §31.6). It defines only: the nine assurance axes, their shipped mapping, the nine verify states, and the exact proof boundary of a signature.
+It does not define the trust *policy* (that is `trust-model.md` §2.7-2.8), the key *lifecycle* (`key-rotation.md`, ADR-004, §31.5), or privacy assurance (`privacy-profiles.md`, §31.6). It defines only: the nine assurance axes, their shipped mapping, the nine verify states, and the exact proof boundary of a signature.

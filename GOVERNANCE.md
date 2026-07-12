@@ -15,10 +15,9 @@ only when objective adoption gates are met (see the protocol adoption gates in
 ## Licensing
 
 - **Code** (reference implementation, verifier, schemas, test vectors):
-  Apache-2.0 — see [`docs/vcc/LICENSE-CODE`](docs/vcc/LICENSE-CODE). Includes a
-  patent grant so third parties can implement the protocol safely.
-- **Specification text**: CC-BY-4.0 — see
-  [`docs/vcc/LICENSE-SPEC`](docs/vcc/LICENSE-SPEC).
+  Apache-2.0 — see [`LICENSE`](LICENSE). Includes a patent grant so third parties
+  can implement the protocol safely.
+- **Specification text**: CC-BY-4.0 — see [`LICENSE-SPEC`](LICENSE-SPEC).
 
 ## Neutrality (load-bearing)
 

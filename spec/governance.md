@@ -1,6 +1,6 @@
 # VCC Governance — normative notes
 
-Companion to the repository-level [`GOVERNANCE.md`](../../GOVERNANCE.md). This
+Companion to the repository-level [`GOVERNANCE.md`](../GOVERNANCE.md). This
 document holds the normative wording referenced by the protocol pages
 (`/protocol`, `/protocol/governance`). It supersedes nothing in the code; it
 describes process.

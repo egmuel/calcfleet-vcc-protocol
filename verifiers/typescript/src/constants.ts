@@ -13,7 +13,8 @@ export const VCC_PAYLOAD_TYPE =
   "application/vnd.vcc.statement+json;version=0.2";
 
 /** Statement `type` URL for single deterministic calculations. */
-export const VCC_STATEMENT_TYPE = "https://vcc.dev/statement/calculation/v0.2";
+export const VCC_STATEMENT_TYPE =
+  "https://calcfleet.com/vcc/statement/calculation/v0.2";
 
 export const VCC_CALC_URN_PREFIX = "urn:vcc:calculation:sha256:";
 

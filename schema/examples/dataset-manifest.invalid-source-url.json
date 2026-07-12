@@ -1,0 +1,28 @@
+{
+  "id": "urn:vcc:dataset:ai-pricing",
+  "name": "ai-pricing",
+  "version": "2026-07",
+  "digest": {
+    "algorithm": "sha-256",
+    "value": "e437c2c2001122334455667788990011223344556677889900112233448386ff"
+  },
+  "mediaType": "application/json",
+  "sources": [
+    {
+      "label": "OpenAI API pricing",
+      "url": "http://169.254.169.254/latest/meta-data"
+    },
+    {
+      "label": "Anthropic pricing",
+      "url": "https://platform.claude.com/docs/en/docs/about-claude/pricing"
+    },
+    {
+      "label": "Google Gemini API pricing",
+      "url": "https://ai.google.dev/gemini-api/docs/pricing"
+    }
+  ],
+  "retrievedAt": "2026-07-07T00:00:00Z",
+  "effectiveFrom": "2026-07-01T00:00:00Z",
+  "effectiveTo": null,
+  "license": null
+}

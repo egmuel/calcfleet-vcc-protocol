@@ -25,10 +25,17 @@ Precondition: you fetched `https://calcfleet.com/.well-known/vcc-issuer.json` **
    ```
 
    where `SP` is a single space (0x20), `len()` is the byte count in ASCII decimal, and `body` is the decoded payload from step 2.
-7. **Verify Ed25519** for each entry in `signatures[]` you care about (v0.2 issues one): look up `keyid` in your pinned keyset, require `algorithm === "ed25519"` (strict literal — no negotiation, no fallback), base64-decode `sig` to raw 64 bytes, verify over the PAE bytes.
-8. **Apply key status** from your pinned keyset, and certificate status if you have it (see below). Only now decide `trustedAtVerificationTime`.
+7. **Verify Ed25519** for **every** entry in `signatures[]` — not just the one you care about. An envelope carries 1..4 signatures with unique `keyid`s; the signature check passes iff there is ≥1 signature **and** every one verifies with a known key. For each: look up `keyid` in your pinned keyset, require `algorithm === "ed25519"` (strict literal — no negotiation, no fallback), base64-decode `sig` to raw 64 bytes, verify over the PAE bytes. A bogus signature riding alongside a valid one MUST fail the envelope; a valid countersignature MUST NOT be ignored because the primary failed. The **primary (first)** signature's key is the issuer's — it drives key status and the issuance-time window check.
+8. **Bind the identity and the issuance window.** Check `issuerIdentityBound` — your keyset's `issuer` must equal the statement's `issuer.id`; a valid signature by a keyset bound to a *different* issuer proves nothing about the named one. Check `keyValidAtIssuance` — the primary key's `validFrom/validUntil` must cover `issuedAt` (`validFrom <= issuedAt` and (`validUntil === null` or `issuedAt <= validUntil`)); timestamps are fixed-width UTC so a string compare is a chronological one. A receipt signed inside the window stays authentic even after the key later expires.
+9. **Apply key status** from your pinned keyset, and certificate status if you have it (see below). Only now decide `trustedAtVerificationTime`.
 
-Steps 1–7 give `cryptographicValidity`. Step 8 is deliberately separate.
+Steps 1–7 give `cryptographicValidity`. Steps 8–9 are deliberately separate:
+
+```
+trustedAtVerificationTime =
+  cryptographicValidity ∧ issuerIdentityBound ∧ keyValidAtIssuance
+    ∧ issuerKeyStatus === "active" ∧ (certificateStatus ∈ {valid, unknown})
+```
 
 ## Key-status semantics
 
@@ -69,7 +76,19 @@ L2 (`reproduce` in the CLI, or the online verify with L2 enabled) resolves the f
 
 ## The four booleans
 
-Surface all four from `summary`, separately: `authentic` (signature from the issuer's key), `intact` (bytes unchanged; id recomputes), `reproducible` (L2 matched; `null` if not attempted), `trusted` (authentic ∧ key active ∧ certificate status permits, at *your* verification time). One-word "verified" badges are the forbidden UI pattern.
+Surface all four from `summary`, separately: `authentic` (signature from the issuer's key), `intact` (bytes unchanged; id recomputes), `reproducible` (L2 matched; `null` if not attempted), `trusted` (authentic ∧ issuer-identity-bound ∧ key-valid-at-issuance ∧ key active ∧ certificate status permits, at *your* verification time). The underlying L1 result exposes the per-axis booleans (`issuerIdentityBound`, `keyValidAtIssuance`) and a `signatureResults[]` array of `{ keyid, keyKnown, algorithmSupported, valid }` in envelope order, so a multi-signature envelope can be surfaced signature-by-signature. One-word "verified" badges are the forbidden UI pattern.
+
+## Security notes — verifying hostile input
+
+A verifier processes bytes it did not produce. The reference implementation hardens accordingly, and a conforming verifier in any language SHOULD do the same:
+
+- **Never throw on untrusted input.** Any internal error while verifying is caught and turned into a well-formed **all-false** result — a malformed or adversarial envelope produces a clean "everything false", never an exception or a crash the caller must handle.
+- **Bound the input before validating it.** The statement is walked iteratively (no recursion) to cap **nesting depth at 64** and **node count at 20000** *before* schema validation, so a deeply-nested or enormous JSON object cannot exhaust the stack or CPU.
+- **Reject non-canonicalizable strings.** UTF-16 lone surrogates cannot be canonicalized deterministically and are rejected rather than silently coerced.
+- **Read the keyset defensively.** A malformed or hostile keyset must not be able to throw the verifier off its all-false path.
+- **URLs must be safe https, and you MUST still block at connect time.** Every URL in a statement (`issuer.id`, `keyDiscovery`, `formula.registry`, `sources.url`) and the keyset's `issuer` must be **https only**, a **registrable DNS host**, with **no IP literals, no `localhost`, no userinfo**. This is string-level validation only — it **cannot** stop DNS rebinding. If you *fetch* any of these URLs (e.g. to refresh a keyset or resolve a registry), your fetcher MUST independently block **private / loopback / link-local ranges at connect time**. Do not treat URL-shape validation as a substitute for network egress control.
+- **Timestamps are real calendar dates.** `issuedAt` and key windows are validated as actual UTC dates (not merely pattern-matched), and fixed-width so lexicographic order equals chronological order.
+- **Typed-value and cross-field invariants are enforced.** Unit rules bind to type (`money` = ISO-4217, `duration` = a time unit, `percent` = `"%"`-style percentage points, `ratio` = no unit); cross-field invariants require `formula.id === urn:vcc:formula:<slug>`, the `datasets-used` claim ↔ non-empty `datasets[]` **biconditional**, the required claims for the attestation type, and **non-empty inputs and outputs**. A statement that violates any of these fails validation, not just verification.
 
 ## Interop notes
 

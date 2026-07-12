@@ -1,0 +1,403 @@
+name: CI
+
+# Gates the VCC v0.2 protocol: cross-language conformance, dependency/license
+# hygiene, doc-link integrity, and (when present) portable JSON Schema parity.
+# These are the CI gates referenced by spec/threat-model.md.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel superseded runs on the same ref to fail fast and save minutes.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. TypeScript verifier: typecheck + conformance runner (all vectors).
+  # ---------------------------------------------------------------------------
+  typescript:
+    name: TypeScript verifier (tsc + conformance)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: verifiers/typescript
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: verifiers/typescript/package-lock.json
+
+      - name: Install dependencies (npm ci)
+        run: npm ci
+
+      - name: Typecheck (tsc --noEmit)
+        run: npx tsc --noEmit
+
+      - name: Conformance runner (tsc && node dist/conformance-runner.js)
+        run: npm run conformance
+
+  # ---------------------------------------------------------------------------
+  # 2. Python verifier: conformance runner + JCS parity tests.
+  # ---------------------------------------------------------------------------
+  python:
+    name: Python verifier (conformance + JCS)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: verifiers/python
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: verifiers/python/requirements.txt
+
+      - name: Install dependencies (cryptography)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Conformance runner (conformance_runner.py)
+        run: python conformance_runner.py
+
+      - name: JCS / canonicalization tests (test_jcs.py)
+        run: python test_jcs.py
+
+  # ---------------------------------------------------------------------------
+  # 3. Cross-language interop gate: run BOTH runners, assert BOTH exit 0.
+  #    This is the parity gate — TS and Python must agree on every vector.
+  # ---------------------------------------------------------------------------
+  cross-language:
+    name: Cross-language interop gate (TS == Python)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: verifiers/typescript/package-lock.json
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: verifiers/python/requirements.txt
+
+      - name: Install TypeScript verifier deps
+        working-directory: verifiers/typescript
+        run: npm ci
+
+      - name: Install Python verifier deps
+        working-directory: verifiers/python
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run TypeScript conformance and capture exit code
+        id: ts
+        working-directory: verifiers/typescript
+        run: |
+          set +e
+          npm run conformance
+          echo "code=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Run Python conformance and capture exit code
+        id: py
+        working-directory: verifiers/python
+        run: |
+          set +e
+          python conformance_runner.py
+          echo "code=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Assert both verifiers passed (interop gate)
+        run: |
+          ts="${{ steps.ts.outputs.code }}"
+          py="${{ steps.py.outputs.code }}"
+          echo "TypeScript conformance exit code: ${ts}"
+          echo "Python conformance exit code:     ${py}"
+          if [ "${ts}" != "0" ] || [ "${py}" != "0" ]; then
+            echo "::error::Cross-language interop gate FAILED (ts=${ts}, py=${py}). Both runners must exit 0."
+            exit 1
+          fi
+          echo "Cross-language interop gate PASSED: both verifiers exited 0."
+
+  # ---------------------------------------------------------------------------
+  # 4. Dependency audit: npm audit (TS) + pip-audit (Python).
+  # ---------------------------------------------------------------------------
+  dependency-audit:
+    name: Dependency audit (npm audit + pip-audit)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: verifiers/typescript/package-lock.json
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install TypeScript verifier deps
+        working-directory: verifiers/typescript
+        run: npm ci
+
+      - name: npm audit (fail on high/critical)
+        working-directory: verifiers/typescript
+        run: npm audit --audit-level=high
+
+      - name: Install pip-audit
+        run: |
+          python -m pip install --upgrade pip
+          pip install pip-audit
+
+      - name: pip-audit Python requirements
+        run: pip-audit -r verifiers/python/requirements.txt
+
+  # ---------------------------------------------------------------------------
+  # 5. License check: verifier package + root LICENSE must be Apache-2.0.
+  # ---------------------------------------------------------------------------
+  license-check:
+    name: License check (Apache-2.0 consistency)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Assert verifiers/typescript/package.json license is Apache-2.0
+        run: |
+          pkg="verifiers/typescript/package.json"
+          if grep -Eq '"license"[[:space:]]*:[[:space:]]*"MIT"' "$pkg"; then
+            echo "::error file=$pkg::License is MIT; VCC code license MUST be Apache-2.0 (CONTRACT section 9)."
+            exit 1
+          fi
+          if ! grep -Eq '"license"[[:space:]]*:[[:space:]]*"Apache-2.0"' "$pkg"; then
+            echo "::error file=$pkg::Missing or non-Apache-2.0 license field; expected \"license\": \"Apache-2.0\"."
+            grep -n '"license"' "$pkg" || echo "(no license field found)"
+            exit 1
+          fi
+          echo "OK: $pkg declares Apache-2.0."
+
+      - name: Assert root LICENSE exists and is Apache-2.0
+        run: |
+          if [ ! -f LICENSE ]; then
+            echo "::error::Root LICENSE file is missing (expected Apache-2.0)."
+            exit 1
+          fi
+          if ! grep -q "Apache License" LICENSE || ! grep -q "Version 2.0" LICENSE; then
+            echo "::error file=LICENSE::Root LICENSE is not the Apache License 2.0."
+            exit 1
+          fi
+          echo "OK: root LICENSE is Apache-2.0."
+
+  # ---------------------------------------------------------------------------
+  # 6. Markdown relative-link checker (inline, no external service).
+  #    For every ](relative.md...) link in tracked *.md, assert the target exists.
+  # ---------------------------------------------------------------------------
+  links:
+    name: Docs relative-link check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check relative markdown links resolve
+        run: |
+          python - <<'PY'
+          import os, re, sys, glob
+
+          # Collect markdown files: root, spec/, adr/ (and any nested *.md).
+          md_files = sorted(set(
+              glob.glob("*.md")
+              + glob.glob("**/*.md", recursive=True)
+          ))
+
+          # ](target)  where target is a relative link, optionally with #anchor.
+          # Skip absolute URLs (http:, https:, mailto:), in-page anchors (#...),
+          # and protocol-relative (//...).
+          link_re = re.compile(r'\]\(\s*(<)?([^)>\s]+?)(>)?\s*(?:\s+"[^"]*")?\)')
+
+          errors = []
+          checked = 0
+          for md in md_files:
+              base = os.path.dirname(md)
+              try:
+                  with open(md, encoding="utf-8") as fh:
+                      text = fh.read()
+              except Exception as e:  # pragma: no cover
+                  errors.append(f"{md}: could not read ({e})")
+                  continue
+              for m in link_re.finditer(text):
+                  target = m.group(2).strip()
+                  if not target:
+                      continue
+                  low = target.lower()
+                  if low.startswith(("http://", "https://", "mailto:", "tel:", "#", "//", "data:")):
+                      continue
+                  # Strip anchor and query.
+                  path = target.split("#", 1)[0].split("?", 1)[0]
+                  if not path:
+                      continue
+                  # Only enforce existence for links that look like local files
+                  # (e.g. *.md, *.json, *.ts, or paths with a slash). This keeps
+                  # the check focused on cross-doc references.
+                  resolved = os.path.normpath(os.path.join(base, path))
+                  checked += 1
+                  if not os.path.exists(resolved):
+                      errors.append(f"{md}: broken relative link -> '{target}' (resolved: {resolved})")
+
+          print(f"Scanned {len(md_files)} markdown files; checked {checked} relative links.")
+          if errors:
+              print("\nBROKEN LINKS:")
+              for e in errors:
+                  print(f"  ::error::{e}")
+              sys.exit(1)
+          print("All relative markdown links resolve.")
+          PY
+
+  # ---------------------------------------------------------------------------
+  # 7. Schema parity: if schema/*.schema.json exists, validate every
+  #    vectors/*.json statement against the statement JSON Schema.
+  #    Skips gracefully when no portable JSON Schema has landed yet.
+  # ---------------------------------------------------------------------------
+  schema-parity:
+    name: Schema parity (vectors vs JSON Schema)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install jsonschema
+        run: |
+          python -m pip install --upgrade pip
+          pip install "jsonschema>=4,<5"
+
+      - name: Validate vectors against statement JSON Schema
+        run: |
+          python - <<'PY'
+          import glob, json, sys, os
+
+          schema_files = sorted(glob.glob("schema/*.schema.json"))
+          if not schema_files:
+              print("No schema/*.schema.json present yet; skipping schema-parity (gate is a no-op until the portable JSON Schema lands).")
+              sys.exit(0)
+
+          try:
+              import jsonschema
+              from jsonschema import Draft202012Validator
+          except Exception as e:
+              print(f"::error::jsonschema import failed: {e}")
+              sys.exit(1)
+
+          # Prefer a statement schema; fall back to the first schema file.
+          statement_schemas = [f for f in schema_files if "statement" in os.path.basename(f).lower()]
+          schema_path = statement_schemas[0] if statement_schemas else schema_files[0]
+          print(f"Using statement JSON Schema: {schema_path}")
+          with open(schema_path, encoding="utf-8") as fh:
+              schema = json.load(fh)
+          validator = Draft202012Validator(schema)
+
+          def extract_statement(doc):
+              # Vectors may wrap the signed statement; try common shapes.
+              if not isinstance(doc, dict):
+                  return None
+              for key in ("statement", "canonicalStatement"):
+                  val = doc.get(key)
+                  if isinstance(val, dict):
+                      return val
+                  if isinstance(val, str):
+                      try:
+                          return json.loads(val)
+                      except Exception:
+                          return None
+              return doc
+
+          vectors = sorted(glob.glob("vectors/*.json"))
+          errors = []
+          validated = 0
+          for vec in vectors:
+              name = os.path.basename(vec)
+              if name in ("test-key.json", "index.json"):
+                  continue
+              with open(vec, encoding="utf-8") as fh:
+                  try:
+                      doc = json.load(fh)
+                  except Exception as e:
+                      errors.append(f"{vec}: invalid JSON ({e})")
+                      continue
+              stmt = extract_statement(doc)
+              if stmt is None:
+                  print(f"  - {name}: no embedded statement found; skipped.")
+                  continue
+              validated += 1
+              verrs = sorted(validator.iter_errors(stmt), key=lambda e: e.path)
+              if verrs:
+                  for ve in verrs:
+                      loc = "/".join(str(p) for p in ve.path) or "(root)"
+                      errors.append(f"{vec} @ {loc}: {ve.message}")
+
+          print(f"Validated {validated} golden vector statements against {schema_path}.")
+          if errors:
+              print("\nSCHEMA VIOLATIONS:")
+              for e in errors:
+                  print(f"  ::error::{e}")
+              sys.exit(1)
+          print("All golden vectors conform to the statement JSON Schema.")
+          PY
+
+  # ---------------------------------------------------------------------------
+  # 8. Secret scan (gitleaks) — catch committed keys/tokens.
+  # ---------------------------------------------------------------------------
+  secret-scan:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

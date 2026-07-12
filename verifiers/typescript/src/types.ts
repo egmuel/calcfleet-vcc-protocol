@@ -22,7 +22,7 @@ export type VccValue =
 
 export interface VccStatement {
   specVersion: "0.2";
-  type: "https://vcc.dev/statement/calculation/v0.2";
+  type: "https://calcfleet.com/vcc/statement/calculation/v0.2";
   subject: VccSubject;
   // The remaining fields are validated by the Zod schema but not read directly
   // by L1 beyond canonicalization/id; kept as an index signature to stay a
@@ -43,6 +43,17 @@ export interface VccEnvelope {
   /** Standard base64 (padded) of the JCS canonical statement bytes. */
   payload: string;
   signatures: VccSignature[];
+}
+
+/** Per-signature verification detail (multi-signature envelopes, ADR-006). */
+export interface VccSignatureResult {
+  keyid: string;
+  /** The keyid resolved to a key in the supplied keyset. */
+  keyKnown: boolean;
+  /** That key's algorithm is ed25519. */
+  algorithmSupported: boolean;
+  /** The signature is strict base64 and verifies over the DSSE PAE. */
+  valid: boolean;
 }
 
 // ── Keys (ADR-004) ───────────────────────────────────────────────────────────
@@ -95,7 +106,24 @@ export interface VccL1VerificationResult {
   statementIntact: boolean;
   issuerKeyStatus: VccKeyStatus | "unknown";
   certificateStatus: VccCertificateStatus | "unknown";
-  /** validity ∧ key active ∧ certificate valid-or-unknown-status. */
+  /**
+   * Axis 2 — the supplied keyset actually belongs to the issuer named in the
+   * statement (keyset.issuer === statement.issuer.id). A valid signature by an
+   * UNBOUND keyset proves nothing about the claimed issuer (audit P0#1).
+   */
+  issuerIdentityBound: boolean;
+  /**
+   * Axis 3 — the signing key's validity window covered the statement's
+   * `issuedAt` (validFrom ≤ issuedAt ≤ validUntil-or-open). A signature made
+   * outside the key's window is flagged even if the bytes verify (audit P0#2).
+   */
+  keyValidAtIssuance: boolean;
+  /** Per-signature detail; length matches the envelope's signatures. */
+  signatureResults: VccSignatureResult[];
+  /**
+   * validity ∧ issuer bound ∧ key valid at issuance ∧ key active now ∧
+   * certificate valid-or-unknown-status.
+   */
   trustedAtVerificationTime: boolean;
   checks: VccL1Checks;
   /** Parsed statement when payload decoded + validated; absent otherwise. */

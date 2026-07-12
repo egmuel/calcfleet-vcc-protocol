@@ -82,7 +82,7 @@ The store is append-only at the application level: `put` on an existing id with 
 Log **codes, never content** ([ADR-004 §8](../adr/ADR-004-key-management.md)):
 
 - Do log: `VccErrorCode` values, `certificateReason` counts, key **id** (never material), payload sizes, store outcomes (`stored` / `already-exists` / refused), L2 statuses.
-- Never log: private keys, full signatures, envelope payloads, statement contents, or anything correlating a certificate to a requester beyond the opaque `requestId` ([privacy](./privacy.md)).
-- Useful steady-state signals: rate of `signer-unavailable` (should be zero in healthy prod), rate of `privacy-rejected` (spikes may indicate probing — see [threat model](./threat-model.md) T13), certified share of API calls ([migration plan](./migration-plan.md#success-metrics)).
+- Never log: private keys, full signatures, envelope payloads, statement contents, or anything correlating a certificate to a requester beyond the opaque `requestId` ([privacy profiles](./privacy-profiles.md)).
+- Useful steady-state signals: rate of `signer-unavailable` (should be zero in healthy prod), rate of `privacy-rejected` (spikes may indicate probing — see [threat model](./threat-model.md) T13), certified share of API calls.
 
 If you rotate or lose a key, stop here and follow the [key rotation runbook](./key-rotation.md) — including its compromise procedure and the 1-hour keyset cache window.

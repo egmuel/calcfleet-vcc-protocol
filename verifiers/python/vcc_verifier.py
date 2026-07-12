@@ -35,6 +35,7 @@ import json
 import re
 from dataclasses import dataclass, field
 from typing import Any
+from urllib.parse import urlsplit
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
@@ -43,7 +44,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 VCC_SPEC_VERSION = "0.2"
 VCC_PAYLOAD_TYPE = "application/vnd.vcc.statement+json;version=0.2"
-VCC_STATEMENT_TYPE = "https://vcc.dev/statement/calculation/v0.2"
+VCC_STATEMENT_TYPE = "https://calcfleet.com/vcc/statement/calculation/v0.2"
 VCC_NUMERIC_PROFILE = "vcc-decimal-v1"
 VCC_RUNTIME_PROFILE = "node-deterministic-v1"
 VCC_CALC_URN_PREFIX = "urn:vcc:calculation:sha256:"
@@ -75,6 +76,68 @@ ATTESTATION_CLAIMS = {
 }
 NUMERIC_KINDS = {"integer", "decimal", "percent", "ratio", "money", "duration"}
 KEY_STATUSES = {"active", "retired", "revoked", "compromised"}
+
+# ── Shared cross-language helpers (mirror schemas.ts EXACTLY — the interop gate
+#    depends on TS and Python accepting the same set). ──────────────────────────
+
+ISO4217_RE = re.compile(r"^[A-Z]{3}$")
+DURATION_UNITS = {"years", "months", "weeks", "days", "hours", "minutes", "seconds"}
+_DNS_LABEL = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
+DNS_HOST_RE = re.compile(rf"^{_DNS_LABEL}(?:\.{_DNS_LABEL})*$")
+_DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+
+
+def is_safe_https_url(s: Any, max_len: int) -> bool:
+    """https-only, registrable DNS host, ASCII, no userinfo, no IP literals /
+    localhost / *.local. Mirrors schemas.ts isSafeHttpsUrl — pure string work so
+    TS and Python agree on every input (closes the cross-language divergence)."""
+    if not isinstance(s, str) or len(s) == 0 or len(s) > max_len:
+        return False
+    if any(ord(c) > 127 for c in s):
+        return False
+    try:
+        u = urlsplit(s)
+        host = u.hostname
+    except Exception:
+        return False
+    if u.scheme != "https":
+        return False
+    if u.username or u.password:
+        return False
+    if not host:
+        return False
+    host = host.lower()
+    if ":" in host:  # IPv6 literal
+        return False
+    if host == "localhost" or host.endswith(".localhost") or host.endswith(".local"):
+        return False
+    if not DNS_HOST_RE.match(host):
+        return False
+    labels = host.split(".")
+    if len(labels) < 2:  # require at least one dot
+        return False
+    tld = labels[-1]
+    return any("a" <= ch <= "z" for ch in tld)  # alphabetic TLD ⇒ not an IPv4 literal
+
+
+def _is_leap_year(y: int) -> bool:
+    return y % 4 == 0 and (y % 100 != 0 or y % 400 == 0)
+
+
+def is_valid_utc_timestamp(s: Any) -> bool:
+    """A REAL UTC seconds timestamp `YYYY-MM-DDTHH:MM:SSZ` (mirror schemas.ts)."""
+    if not isinstance(s, str) or not ISSUED_AT_RE.match(s):
+        return False
+    y = int(s[0:4]); mo = int(s[5:7]); d = int(s[8:10])
+    h = int(s[11:13]); mi = int(s[14:16]); se = int(s[17:19])
+    if mo < 1 or mo > 12:
+        return False
+    dim = _DAYS_IN_MONTH[mo - 1]
+    if mo == 2 and _is_leap_year(y):
+        dim = 29
+    if d < 1 or d > dim:
+        return False
+    return h <= 23 and mi <= 59 and se <= 59
 
 
 # ── RFC 8785 JCS canonicalization ────────────────────────────────────────────
@@ -113,6 +176,7 @@ def _serialize_string(s: str) -> str:
 
 def _serialize_number(n: float | int) -> str:
     import math
+    from decimal import Decimal
 
     if isinstance(n, bool):  # bool is a subclass of int — reject as ambiguous
         raise CanonicalizationError("boolean where number expected")
@@ -120,11 +184,37 @@ def _serialize_number(n: float | int) -> str:
         return str(n)
     if not math.isfinite(n):
         raise CanonicalizationError("non-finite number")
-    # ECMAScript Number ToString "shortest round-trip". Python's repr(float)
-    # is also shortest round-trip; for integral floats JS drops the ".0".
-    if n == int(n) and abs(n) < 1e21:
-        return str(int(n))
-    return repr(n)
+    if n == 0:
+        return "0"  # ECMAScript renders both 0.0 and -0.0 as "0"
+    # Full ECMAScript Number::toString: Python's repr(float) gives the shortest
+    # round-tripping digits; we then apply the exact ES placement/exponent rules
+    # so e.g. 1e-7 → "1e-7" (not Python's "1e-07") and 1e-6 → "0.000001". This
+    # makes canonicalize() genuinely RFC 8785-generic and byte-identical to the
+    # TypeScript verifier's JSON.stringify on numbers (closes the audit's
+    # cross-language number-serialization divergence).
+    sign = "-" if n < 0 else ""
+    tup = Decimal(repr(abs(n))).as_tuple()
+    digits = "".join(str(d) for d in tup.digits)
+    exp = tup.exponent
+    stripped = digits.rstrip("0")
+    if stripped == "":
+        return "0"
+    exp += len(digits) - len(stripped)
+    digits = stripped
+    k = len(digits)
+    point = exp + k  # ES 'n': number of digits left of the decimal point
+    if k <= point <= 21:
+        body = digits + "0" * (point - k)
+    elif 0 < point <= 21:
+        body = digits[:point] + "." + digits[point:]
+    elif -6 < point <= 0:
+        body = "0." + "0" * (-point) + digits
+    else:
+        e = point - 1
+        esign = "+" if e >= 0 else "-"
+        mantissa = digits if k == 1 else digits[0] + "." + digits[1:]
+        body = f"{mantissa}e{esign}{abs(e)}"
+    return sign + body
 
 
 def canonicalize(value: Any) -> str:
@@ -136,6 +226,12 @@ def canonicalize(value: Any) -> str:
         if isinstance(v, bool):
             return "true" if v else "false"
         if isinstance(v, str):
+            # A lone surrogate (any code point U+D800..U+DFFF, since Python stores
+            # code points, never pairs) has no valid UTF-8 encoding → not
+            # canonicalizable. Reject rather than crash on .encode() later; the
+            # TS verifier rejects the same strings, so the two agree.
+            if any(0xD800 <= ord(c) <= 0xDFFF for c in v):
+                raise CanonicalizationError("lone surrogate in string")
             return _serialize_string(v)
         if isinstance(v, (int, float)):
             return _serialize_number(v)
@@ -268,6 +364,21 @@ def _valid_typed_value(tv: dict[str, Any]) -> bool:
         return False
     if tv["value"] == "-0" or (tv["value"].startswith("-0.") and not re.search(r"[1-9]", tv["value"])):
         return False
+    # Type-dependent unit constraints (mirror schemas.ts typedValueSchema).
+    unit = tv.get("unit")
+    t = tv["type"]
+    if t == "money":
+        if unit is None or not ISO4217_RE.match(unit):
+            return False
+    elif t == "duration":
+        if unit is None or unit not in DURATION_UNITS:
+            return False
+    elif t == "percent":
+        if unit is not None and unit != "%":
+            return False
+    elif t == "ratio":
+        if unit is not None:
+            return False
     return True
 
 
@@ -292,7 +403,7 @@ def _valid_source_ref(s: Any) -> bool:
     return (
         _strict_keys(s, {"label", "url"}, {"label", "url"})
         and _is_str(s["label"]) and 1 <= len(s["label"]) <= 200
-        and _is_str(s["url"]) and len(s["url"]) <= 500
+        and is_safe_https_url(s.get("url"), 500)
     )
 
 
@@ -315,6 +426,10 @@ def validate_envelope(env: Any) -> bool:
             return False
         if not (_is_str(s["sig"]) and 86 <= len(s["sig"]) <= 90 and BASE64_STD_RE.match(s["sig"])):
             return False
+    # Multi-signature: keyids must be unique within an envelope.
+    keyids = [s["keyid"] for s in sigs]
+    if len(set(keyids)) != len(keyids):
+        return False
     return True
 
 
@@ -338,11 +453,11 @@ def validate_statement(st: Any) -> bool:
     iss = st["issuer"]
     if not _strict_keys(iss, {"id", "name", "keyDiscovery"}, {"id", "name", "keyDiscovery"}):
         return False
-    if not (_is_str(iss["id"]) and len(iss["id"]) <= 200):
+    if not is_safe_https_url(iss.get("id"), 200):
         return False
     if not (_is_str(iss["name"]) and 1 <= len(iss["name"]) <= 100):
         return False
-    if not (_is_str(iss["keyDiscovery"]) and len(iss["keyDiscovery"]) <= 300):
+    if not is_safe_https_url(iss.get("keyDiscovery"), 300):
         return False
 
     f = st["formula"]
@@ -357,7 +472,7 @@ def validate_statement(st: Any) -> bool:
         return False
     if not _valid_digest(f["digest"]):
         return False
-    if not (_is_str(f["registry"]) and len(f["registry"]) <= 400):
+    if not is_safe_https_url(f.get("registry"), 400):
         return False
     if f["visibility"] != "open":
         return False
@@ -428,7 +543,7 @@ def validate_statement(st: Any) -> bool:
     if len(set(claims)) != len(claims):
         return False
 
-    if not (_is_str(st["issuedAt"]) and ISSUED_AT_RE.match(st["issuedAt"])):
+    if not is_valid_utc_timestamp(st["issuedAt"]):
         return False
 
     ctx = st["context"]
@@ -437,6 +552,22 @@ def validate_statement(st: Any) -> bool:
     if ctx["surface"] not in {"api", "web", "mcp", "graph"}:
         return False
     if "requestId" in ctx and not (_is_str(ctx["requestId"]) and REQUEST_ID_RE.match(ctx["requestId"])):
+        return False
+
+    # Cross-field semantic invariants (mirror statementSchema.superRefine).
+    if f["id"] != "urn:vcc:formula:" + f["slug"]:
+        return False
+    claims_set = set(claims)
+    if ("datasets-used" in claims_set) != (len(ds) > 0):
+        return False
+    required_by_type = {
+        "execution": {"inputs-received", "formula-executed", "output-produced"},
+        "reproduction": {"formula-executed", "output-produced"},
+        "review": {"formula-executed"},
+    }
+    if not required_by_type.get(att["type"], set()).issubset(claims_set):
+        return False
+    if len(calc["inputs"]) == 0 or len(calc["outputs"]) == 0:
         return False
 
     return True
@@ -478,6 +609,9 @@ class L1Result:
     statementIntact: bool
     issuerKeyStatus: str
     certificateStatus: str
+    issuerIdentityBound: bool
+    keyValidAtIssuance: bool
+    signatureResults: list[dict[str, Any]]
     trustedAtVerificationTime: bool
     checks: dict[str, bool]
     errors: list[str] = field(default_factory=list)
@@ -485,28 +619,84 @@ class L1Result:
     idHex: str | None = None
 
 
-def find_issuer_key(keyset: dict[str, Any], keyid: str) -> dict[str, Any] | None:
-    for k in keyset.get("keys", []):
-        if k.get("keyId") == keyid:
-            return k
-    return None
+MAX_STATEMENT_DEPTH = 64
+MAX_STATEMENT_NODES = 20_000
+
+
+def _exceeds_structural_limits(root: Any) -> bool:
+    """Depth/size guard, iterative (explicit stack) so it can't itself overflow —
+    mirrors verify.ts exceedsStructuralLimits (audit P0#3, deep nesting)."""
+    nodes = 0
+    stack: list[tuple[Any, int]] = [(root, 1)]
+    while stack:
+        v, depth = stack.pop()
+        if depth > MAX_STATEMENT_DEPTH:
+            return True
+        nodes += 1
+        if nodes > MAX_STATEMENT_NODES:
+            return True
+        if isinstance(v, list):
+            for e in v:
+                stack.append((e, depth + 1))
+        elif isinstance(v, dict):
+            for val in v.values():
+                stack.append((val, depth + 1))
+    return False
+
+
+def _coerce_keyset(keys: Any) -> tuple[str | None, list[dict[str, Any]]]:
+    """Read an untrusted keyset defensively, never throwing (audit P0#3). We do
+    NOT enforce algorithm/status here — the per-check logic reports those."""
+    if not isinstance(keys, dict):
+        return None, []
+    issuer = keys.get("issuer") if isinstance(keys.get("issuer"), str) else None
+    raw = keys.get("keys")
+    arr = [k for k in raw if isinstance(k, dict)] if isinstance(raw, list) else []
+    return issuer, arr
 
 
 def verify_vcc_envelope(
     envelope: Any,
-    keyset: dict[str, Any],
+    keyset: Any,
     certificate_status: str | None = None,
+) -> L1Result:
+    cert_status = certificate_status if certificate_status is not None else "unknown"
+    try:
+        return _verify_vcc_envelope_inner(envelope, keyset, cert_status)
+    except Exception as exc:  # noqa: BLE001 — the verifier MUST NOT throw (P0#3)
+        return L1Result(
+            cryptographicValidity=False,
+            signatureValid=False,
+            statementIntact=False,
+            issuerKeyStatus="unknown",
+            certificateStatus=cert_status,
+            issuerIdentityBound=False,
+            keyValidAtIssuance=False,
+            signatureResults=[],
+            trustedAtVerificationTime=False,
+            checks=L1Checks().as_dict(),
+            errors=[f"internal verifier error: {type(exc).__name__}: {exc}"],
+        )
+
+
+def _verify_vcc_envelope_inner(
+    envelope: Any,
+    keyset: Any,
+    cert_status: str,
 ) -> L1Result:
     checks = L1Checks()
     errors: list[str] = []
     statement: dict[str, Any] | None = None
     id_hex: str | None = None
     issuer_key_status = "unknown"
+    issuer_identity_bound = False
+    key_valid_at_issuance = False
+    signature_results: list[dict[str, Any]] = []
 
     def fail(msg: str) -> None:
         errors.append(msg)
 
-    # 1. Envelope shape (strict).
+    # 1. Envelope shape (strict, keyids unique).
     env_ok = validate_envelope(envelope)
     checks.envelopeSchema = env_ok
     if not env_ok:
@@ -528,7 +718,8 @@ def verify_vcc_envelope(
         else:
             fail("payload is not strict base64 within size limits")
 
-    # 4. Statement schema (strict).
+    # 4. Statement schema (strict), depth/size-capped so a hostile deeply-nested
+    #    payload can't blow the stack during validation.
     if payload_bytes is not None:
         try:
             parsed = json.loads(payload_bytes.decode("utf-8"))
@@ -536,7 +727,9 @@ def verify_vcc_envelope(
             fail("payload is not valid JSON")
             parsed = None
         if parsed is not None:
-            if validate_statement(parsed):
+            if _exceeds_structural_limits(parsed):
+                fail("statement structure is too deep or too large")
+            elif validate_statement(parsed):
                 statement = parsed
                 checks.statementSchema = True
             else:
@@ -548,7 +741,7 @@ def verify_vcc_envelope(
             canonical = canonicalize(statement)
             checks.canonicalization = canonical == payload_bytes.decode("utf-8")
         except CanonicalizationError:
-            checks.canonicalization = False
+            checks.canonicalization = False  # e.g. a lone surrogate — not a crash
         if not checks.canonicalization:
             fail("payload bytes are not the canonical (RFC 8785) form of the statement")
 
@@ -565,31 +758,86 @@ def verify_vcc_envelope(
         else:
             fail("subject.id does not match the statement content")
 
-    # 7-9. Key lookup, algorithm, signature over PAE.
+    # Issuer binding (axis 2): the keyset must belong to the statement's issuer.
+    keyset_issuer, keyset_keys = _coerce_keyset(keyset)
+    if not keyset_keys and env_ok:
+        fail("issuer keyset is empty or malformed")
+    statement_issuer_id = None
+    if isinstance(statement, dict):
+        iss = statement.get("issuer")
+        if isinstance(iss, dict) and isinstance(iss.get("id"), str):
+            statement_issuer_id = iss["id"]
+    if (
+        statement_issuer_id is not None
+        and keyset_issuer is not None
+        and keyset_issuer == statement_issuer_id
+    ):
+        issuer_identity_bound = True
+    elif statement is not None:
+        fail("keyset issuer is not bound to the statement's issuer.id")
+
+    def find_key(keyid: str) -> dict[str, Any] | None:
+        for k in keyset_keys:
+            if k.get("keyId") == keyid:
+                return k
+        return None
+
+    # 7-9. Multi-signature: EVERY signature must resolve to a known ed25519 key
+    #       and verify over the DSSE PAE (audit P1: no ignored/free-riding sigs).
     if typed_envelope is not None and payload_bytes is not None:
-        sig0 = typed_envelope["signatures"][0]
-        key = find_issuer_key(keyset, sig0["keyid"])
-        if key is not None:
-            checks.keyKnown = True
-            issuer_key_status = key.get("status", "unknown")
-            checks.algorithmSupported = key.get("algorithm") == "ed25519"
-            if not checks.algorithmSupported:
-                fail("unsupported signature algorithm")
-            if checks.algorithmSupported:
-                pae = build_pae(VCC_PAYLOAD_TYPE, payload_bytes)
+        pae = build_pae(VCC_PAYLOAD_TYPE, payload_bytes)
+        for sig in typed_envelope["signatures"]:
+            key = find_key(sig["keyid"])
+            key_known = key is not None
+            algorithm_supported = key_known and key.get("algorithm") == "ed25519"
+            valid = False
+            if algorithm_supported and isinstance(key.get("publicKey"), str):
                 try:
-                    sig_bytes = base64.b64decode(sig0["sig"])
-                    strict = base64.b64encode(sig_bytes).decode("ascii") == sig0["sig"]
+                    sig_bytes = base64.b64decode(sig["sig"])
+                    strict = base64.b64encode(sig_bytes).decode("ascii") == sig["sig"]
                 except Exception:
                     sig_bytes = b""
                     strict = False
-                checks.signature = strict and verify_signature_raw(
-                    key["publicKey"], pae, sig_bytes
+                valid = strict and verify_signature_raw(key["publicKey"], pae, sig_bytes)
+            signature_results.append({
+                "keyid": sig["keyid"],
+                "keyKnown": key_known,
+                "algorithmSupported": bool(algorithm_supported),
+                "valid": bool(valid),
+            })
+
+        checks.keyKnown = len(signature_results) > 0 and all(r["keyKnown"] for r in signature_results)
+        checks.algorithmSupported = (
+            len(signature_results) > 0 and all(r["algorithmSupported"] for r in signature_results)
+        )
+        checks.signature = len(signature_results) > 0 and all(r["valid"] for r in signature_results)
+        if not checks.keyKnown:
+            fail("a signature keyid is not in the supplied keyset")
+        if checks.keyKnown and not checks.algorithmSupported:
+            fail("unsupported signature algorithm")
+        if checks.algorithmSupported and not checks.signature:
+            fail("an Ed25519 signature does not verify")
+
+        # Primary (first) signature's key drives status + temporal validity.
+        primary = find_key(typed_envelope["signatures"][0]["keyid"])
+        if primary is not None:
+            issuer_key_status = primary.get("status", "unknown") if isinstance(primary.get("status"), str) else "unknown"
+            if isinstance(statement, dict):
+                issued_at = statement.get("issuedAt")
+                vf = primary.get("validFrom")
+                vu = primary.get("validUntil")
+                key_valid_at_issuance = (
+                    isinstance(issued_at, str)
+                    and isinstance(vf, str)
+                    and is_valid_utc_timestamp(vf)
+                    and vf <= issued_at
+                    and (
+                        vu is None
+                        or (isinstance(vu, str) and is_valid_utc_timestamp(vu) and issued_at <= vu)
+                    )
                 )
-                if not checks.signature:
-                    fail("Ed25519 signature does not verify")
-        else:
-            fail(f'key id "{sig0["keyid"]}" is not in the supplied keyset')
+                if not key_valid_at_issuance:
+                    fail("signing key was not valid at the statement's issuedAt")
 
     cryptographic_validity = all(checks.as_dict().values())
 
@@ -601,9 +849,10 @@ def verify_vcc_envelope(
         and checks.statementId
     )
 
-    cert_status = certificate_status if certificate_status is not None else "unknown"
     trusted = (
         cryptographic_validity
+        and issuer_identity_bound
+        and key_valid_at_issuance
         and issuer_key_status == "active"
         and (cert_status == "valid" or cert_status == "unknown")
     )
@@ -614,6 +863,9 @@ def verify_vcc_envelope(
         statementIntact=statement_intact,
         issuerKeyStatus=issuer_key_status,
         certificateStatus=cert_status,
+        issuerIdentityBound=issuer_identity_bound,
+        keyValidAtIssuance=key_valid_at_issuance,
+        signatureResults=signature_results,
         trustedAtVerificationTime=trusted,
         checks=checks.as_dict(),
         errors=errors,

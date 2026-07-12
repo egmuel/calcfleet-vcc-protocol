@@ -83,6 +83,21 @@ function keysetFor(name: string | null | undefined): VccIssuerKeySet {
       })),
     };
   }
+  if (name === "issuer-mismatch") {
+    return { issuer: "https://attacker.example", keys: ks.keys };
+  }
+  if (name === "future-key") {
+    return {
+      issuer: ks.issuer,
+      keys: ks.keys.map((k: VccIssuerKey) => ({ ...k, validFrom: "2099-01-01T00:00:00Z" })),
+    };
+  }
+  if (name === "expired-key") {
+    return {
+      issuer: ks.issuer,
+      keys: ks.keys.map((k: VccIssuerKey) => ({ ...k, validUntil: "2020-01-01T00:00:00Z" })),
+    };
+  }
   return ks;
 }
 
@@ -170,6 +185,17 @@ async function checkNegative(file: string): Promise<Result> {
         `trustedAtVerificationTime=${res.trustedAtVerificationTime} want ${exp.l1TrustedAtVerificationTime}`,
       );
     }
+  }
+
+  if (exp.l1IssuerIdentityBound != null && res.issuerIdentityBound !== exp.l1IssuerIdentityBound) {
+    problems.push(
+      `issuerIdentityBound=${res.issuerIdentityBound} want ${exp.l1IssuerIdentityBound}`,
+    );
+  }
+  if (exp.l1KeyValidAtIssuance != null && res.keyValidAtIssuance !== exp.l1KeyValidAtIssuance) {
+    problems.push(
+      `keyValidAtIssuance=${res.keyValidAtIssuance} want ${exp.l1KeyValidAtIssuance}`,
+    );
   }
 
   return [problems.length === 0, problems.join("; ")];

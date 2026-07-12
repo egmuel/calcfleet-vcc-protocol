@@ -21,16 +21,67 @@ import {
   VCC_MAX_CERTIFICATE_BYTES,
   VCC_PAYLOAD_TYPE,
 } from "./constants.js";
-import { envelopeSchema, statementSchema } from "./schemas.js";
+import { envelopeSchema, isValidUtcTimestamp, statementSchema } from "./schemas.js";
 import type {
   VccCertificateStatus,
   VccEnvelope,
-  VccIssuerKey,
   VccIssuerKeySet,
+  VccKeyStatus,
   VccL1Checks,
   VccL1VerificationResult,
+  VccSignatureResult,
   VccStatement,
 } from "./types.js";
+
+/** Reject structures deeper/larger than this before schema validation runs. */
+const MAX_STATEMENT_DEPTH = 64;
+const MAX_STATEMENT_NODES = 20_000;
+
+/**
+ * Depth + node-count guard for parsed JSON, done ITERATIVELY with an explicit
+ * stack so the guard itself can never overflow the call stack it protects. A
+ * hostile 64KB payload can nest thousands of objects; this caps it before the
+ * recursive schema/canonicalization logic ever touches it.
+ */
+function exceedsStructuralLimits(root: unknown): boolean {
+  let nodes = 0;
+  const stack: Array<[unknown, number]> = [[root, 1]];
+  while (stack.length > 0) {
+    const top = stack.pop() as [unknown, number];
+    const v = top[0];
+    const depth = top[1];
+    if (depth > MAX_STATEMENT_DEPTH) return true;
+    if (++nodes > MAX_STATEMENT_NODES) return true;
+    if (Array.isArray(v)) {
+      for (const e of v) stack.push([e, depth + 1]);
+    } else if (v !== null && typeof v === "object") {
+      const obj = v as Record<string, unknown>;
+      for (const k of Object.keys(obj)) stack.push([obj[k], depth + 1]);
+    }
+  }
+  return false;
+}
+
+/** A loosely-typed key record read defensively from an untrusted keyset. */
+type LooseKey = Record<string, unknown>;
+
+/**
+ * Coerce an untrusted keyset into {issuer, keys[]} without ever throwing. A
+ * malformed keyset (not an object, `keys` not an array, non-object entries)
+ * degrades to "no usable keys" rather than crashing (audit P0#3). We do NOT
+ * enforce the key algorithm/status here — the per-check logic reports those, so
+ * a deliberately non-ed25519 keyset still yields keyKnown=true,
+ * algorithmSupported=false as before.
+ */
+function coerceKeyset(keys: unknown): { issuer: string | null; keys: LooseKey[] } {
+  if (keys === null || typeof keys !== "object") return { issuer: null, keys: [] };
+  const k = keys as Record<string, unknown>;
+  const issuer = typeof k.issuer === "string" ? k.issuer : null;
+  const arr = Array.isArray(k.keys)
+    ? (k.keys.filter((e) => e !== null && typeof e === "object") as LooseKey[])
+    : [];
+  return { issuer, keys: arr };
+}
 
 /** True when this runtime can verify Ed25519 offline via WebCrypto. */
 export function webcryptoEd25519Available(): boolean {
@@ -154,10 +205,6 @@ function idHexFromSubjectId(subjectId: string): string | null {
   return /^[0-9a-f]{64}$/.test(hex) ? hex : null;
 }
 
-function findIssuerKey(keyset: VccIssuerKeySet, keyid: string): VccIssuerKey | null {
-  return keyset.keys.find((k) => k.keyId === keyid) ?? null;
-}
-
 /** Ed25519 verify over PAE via WebCrypto. Any failure/exception → false. */
 async function verifyEd25519(
   publicKeyRawB64: string,
@@ -199,6 +246,45 @@ export async function verifyVccEnvelope(
   keys: VccIssuerKeySet,
   opts?: { certificateStatus?: VccCertificateStatus | null },
 ): Promise<VccL1VerificationResult> {
+  const certificateStatus = opts?.certificateStatus ?? "unknown";
+  try {
+    return await verifyVccEnvelopeInner(envelope, keys, certificateStatus);
+  } catch (err) {
+    // The verifier MUST NOT throw on untrusted input (audit P0#3). Any escape
+    // here is a well-formed, all-false result — never an exception.
+    return {
+      cryptographicValidity: false,
+      signatureValid: false,
+      statementIntact: false,
+      issuerKeyStatus: "unknown",
+      certificateStatus,
+      issuerIdentityBound: false,
+      keyValidAtIssuance: false,
+      signatureResults: [],
+      trustedAtVerificationTime: false,
+      checks: {
+        envelopeSchema: false,
+        payloadType: false,
+        payloadDecodes: false,
+        statementSchema: false,
+        canonicalization: false,
+        statementId: false,
+        keyKnown: false,
+        algorithmSupported: false,
+        signature: false,
+      },
+      errors: [
+        `internal verifier error: ${err instanceof Error ? err.message : String(err)}`,
+      ],
+    };
+  }
+}
+
+async function verifyVccEnvelopeInner(
+  envelope: unknown,
+  keys: unknown,
+  certificateStatus: VccCertificateStatus | "unknown",
+): Promise<VccL1VerificationResult> {
   const checks: VccL1Checks = {
     envelopeSchema: false,
     payloadType: false,
@@ -214,12 +300,15 @@ export async function verifyVccEnvelope(
   let statement: VccStatement | undefined;
   let idHex: string | undefined;
   let issuerKeyStatus: VccL1VerificationResult["issuerKeyStatus"] = "unknown";
+  let issuerIdentityBound = false;
+  let keyValidAtIssuance = false;
+  const signatureResults: VccSignatureResult[] = [];
 
   const fail = (msg: string): void => {
     errors.push(msg);
   };
 
-  // 1. Envelope shape (strict: extra fields are refused).
+  // 1. Envelope shape (strict: extra fields refused, keyids unique).
   const env = envelopeSchema.safeParse(envelope);
   if (env.success) {
     checks.envelopeSchema = true;
@@ -245,16 +334,26 @@ export async function verifyVccEnvelope(
     }
   }
 
-  // 4. Statement schema (strict).
+  // 4. Statement schema (strict), guarded by a depth/size cap so a hostile
+  //    deeply-nested payload can't overflow the stack during validation.
   if (payloadBytes) {
     try {
-      const parsed: unknown = JSON.parse(new TextDecoder().decode(payloadBytes));
-      const st = statementSchema.safeParse(parsed);
-      if (st.success) {
-        statement = st.data as VccStatement;
-        checks.statementSchema = true;
+      // Fatal UTF-8 decode: an invalid byte sequence is REJECTED, not silently
+      // replaced with U+FFFD. This matches Python's strict bytes.decode("utf-8")
+      // so a payload that is not well-formed UTF-8 fails identically in both.
+      const parsed: unknown = JSON.parse(
+        new TextDecoder("utf-8", { fatal: true }).decode(payloadBytes),
+      );
+      if (exceedsStructuralLimits(parsed)) {
+        fail("statement structure is too deep or too large");
       } else {
-        fail("payload JSON is not a valid v0.2 statement");
+        const st = statementSchema.safeParse(parsed);
+        if (st.success) {
+          statement = st.data as VccStatement;
+          checks.statementSchema = true;
+        } else {
+          fail("payload JSON is not a valid v0.2 statement");
+        }
       }
     } catch {
       fail("payload is not valid JSON");
@@ -267,7 +366,7 @@ export async function verifyVccEnvelope(
     try {
       canonical = canonicalize(statement);
     } catch {
-      canonical = null;
+      canonical = null; // e.g. a lone surrogate — not canonicalizable, not a crash
     }
     checks.canonicalization =
       canonical !== null && canonical === new TextDecoder().decode(payloadBytes);
@@ -293,26 +392,76 @@ export async function verifyVccEnvelope(
     }
   }
 
-  // 7-9. Key lookup, algorithm, signature over PAE.
+  // Issuer binding (axis 2): the supplied keyset must belong to the issuer named
+  // in the statement. A valid signature by an UNBOUND keyset proves nothing.
+  const keyset = coerceKeyset(keys);
+  if (keyset.keys.length === 0 && env.success) {
+    fail("issuer keyset is empty or malformed");
+  }
+  const issuerField = (statement as Record<string, unknown> | undefined)?.issuer;
+  const statementIssuerId =
+    issuerField !== null &&
+    typeof issuerField === "object" &&
+    typeof (issuerField as { id?: unknown }).id === "string"
+      ? ((issuerField as { id: string }).id)
+      : null;
+  if (statementIssuerId !== null && keyset.issuer !== null && keyset.issuer === statementIssuerId) {
+    issuerIdentityBound = true;
+  } else if (statement) {
+    fail("keyset issuer is not bound to the statement's issuer.id");
+  }
+
+  // 7-9. Multi-signature: EVERY signature must resolve to a known ed25519 key
+  //       and verify over the DSSE PAE. A single bad signature fails the check —
+  //       a bogus signature cannot ride along a valid one, and a valid second
+  //       signature is not ignored because the first is invalid (audit P1).
   if (typedEnvelope && payloadBytes) {
-    const sig0 = typedEnvelope.signatures[0];
-    const key = findIssuerKey(keys, sig0.keyid);
-    if (key) {
-      checks.keyKnown = true;
-      issuerKeyStatus = key.status;
-      checks.algorithmSupported = key.algorithm === "ed25519";
-      if (!checks.algorithmSupported) fail("unsupported signature algorithm");
-      if (checks.algorithmSupported) {
-        const pae = buildPaeClient(VCC_PAYLOAD_TYPE, payloadBytes);
-        const sigBytes = base64ToBytesStrict(sig0.sig);
-        const sigStrict = sigBytes !== null && bytesToBase64(sigBytes) === sig0.sig;
-        checks.signature =
-          sigStrict &&
-          (await verifyEd25519(key.publicKey, pae, sigBytes as Uint8Array));
-        if (!checks.signature) fail("Ed25519 signature does not verify");
+    const pae = buildPaeClient(VCC_PAYLOAD_TYPE, payloadBytes);
+    for (const sig of typedEnvelope.signatures) {
+      const key = keyset.keys.find((k) => k.keyId === sig.keyid) ?? null;
+      const keyKnown = key !== null;
+      const algorithmSupported = keyKnown && key.algorithm === "ed25519";
+      let valid = false;
+      if (algorithmSupported && typeof key.publicKey === "string") {
+        const sigBytes = base64ToBytesStrict(sig.sig);
+        const sigStrict = sigBytes !== null && bytesToBase64(sigBytes) === sig.sig;
+        valid =
+          sigStrict && (await verifyEd25519(key.publicKey, pae, sigBytes as Uint8Array));
       }
-    } else {
-      fail(`key id "${sig0.keyid}" is not in the supplied keyset`);
+      signatureResults.push({ keyid: sig.keyid, keyKnown, algorithmSupported, valid });
+    }
+
+    checks.keyKnown = signatureResults.length > 0 && signatureResults.every((r) => r.keyKnown);
+    checks.algorithmSupported =
+      signatureResults.length > 0 && signatureResults.every((r) => r.algorithmSupported);
+    checks.signature =
+      signatureResults.length > 0 && signatureResults.every((r) => r.valid);
+    if (!checks.keyKnown) fail("a signature keyid is not in the supplied keyset");
+    if (checks.keyKnown && !checks.algorithmSupported) fail("unsupported signature algorithm");
+    if (checks.algorithmSupported && !checks.signature) fail("an Ed25519 signature does not verify");
+
+    // The primary (first) signature's key drives status + temporal validity.
+    const primary = keyset.keys.find((k) => k.keyId === typedEnvelope.signatures[0].keyid) ?? null;
+    if (primary) {
+      issuerKeyStatus =
+        typeof primary.status === "string"
+          ? (primary.status as VccKeyStatus)
+          : "unknown";
+      if (statement) {
+        const issuedAt = (statement as { issuedAt?: unknown }).issuedAt;
+        const vf = primary.validFrom;
+        const vu = primary.validUntil;
+        keyValidAtIssuance =
+          typeof issuedAt === "string" &&
+          typeof vf === "string" &&
+          isValidUtcTimestamp(vf) &&
+          vf <= issuedAt &&
+          (vu === null ||
+            (typeof vu === "string" && isValidUtcTimestamp(vu) && issuedAt <= vu));
+        if (!keyValidAtIssuance) {
+          fail("signing key was not valid at the statement's issuedAt");
+        }
+      }
     }
   }
 
@@ -327,9 +476,10 @@ export async function verifyVccEnvelope(
     checks.canonicalization &&
     checks.statementId;
 
-  const certificateStatus = opts?.certificateStatus ?? "unknown";
   const trustedAtVerificationTime =
     cryptographicValidity &&
+    issuerIdentityBound &&
+    keyValidAtIssuance &&
     issuerKeyStatus === "active" &&
     (certificateStatus === "valid" || certificateStatus === "unknown");
 
@@ -339,6 +489,9 @@ export async function verifyVccEnvelope(
     statementIntact,
     issuerKeyStatus,
     certificateStatus,
+    issuerIdentityBound,
+    keyValidAtIssuance,
+    signatureResults,
     trustedAtVerificationTime,
     checks,
     errors,

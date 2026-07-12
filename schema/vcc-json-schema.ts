@@ -12,7 +12,7 @@
 /** JSON Schema (Draft 2020-12) for `VccAttestation` — see types.ts / schemas.ts. */
 export const VCC_ATTESTATION_JSON_SCHEMA = {
   $schema: "https://json-schema.org/draft/2020-12/schema",
-  $id: "https://vcc.dev/schema/attestation/v0.2.json",
+  $id: "https://calcfleet.com/vcc/schema/attestation/v0.2.json",
   title: "VCC Issuer Attestation (v0.2)",
   description:
     "What the issuer explicitly attests to on a receipt. Part of the signed statement. Each claim is a fact the issuer performed, never a claim about the world (spec master §42). `type` names the receipt category (§43).",

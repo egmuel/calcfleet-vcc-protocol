@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://calcfleet.com/vcc/schema/envelope/v0.2.json",
+  "title": "VCC DSSE Envelope (v0.2)",
+  "description": "Portable JSON Schema (Draft 2020-12) for the DSSE envelope that wraps a signed VCC statement. Mirrors `envelopeSchema` in verifiers/typescript/src/schemas.ts. The payload is base64(JCS(statement)); payloadType is the fixed DSSE type; signatures are 1..4 Ed25519 signatures. CONTRACT §2: keyids MUST be unique across the array — JSON Schema uniqueItems cannot express object-field uniqueness, so the verifier enforces unique keyids; documented as $comment below.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["payloadType", "payload", "signatures"],
+  "properties": {
+    "payloadType": {
+      "const": "application/vnd.vcc.statement+json;version=0.2"
+    },
+    "payload": {
+      "$comment": "base64(JCS(statement)). 90000-char cap ~= 64KB pre-decode (base64 inflates 4/3; enforced again post-decode by the verifier). BASE64_STD_RE.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+      "maxLength": 90000
+    },
+    "signatures": {
+      "$comment": "CONTRACT §2: min 1, max 4 signatures. uniqueItems on the array only rejects fully-identical objects; it does NOT enforce that keyids are unique (two signatures could share a keyid with different sig bytes). The verifier rejects duplicate keyids across the array. Keep uniqueItems as a cheap first line.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["keyid", "sig"],
+        "properties": {
+          "keyid": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,64}$" },
+          "sig": {
+            "$comment": "Ed25519 sig = 64 bytes -> 88 base64 chars with padding. Bounded 86..90.",
+            "type": "string",
+            "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+            "minLength": 86,
+            "maxLength": 90
+          }
+        }
+      }
+    }
+  }
+}

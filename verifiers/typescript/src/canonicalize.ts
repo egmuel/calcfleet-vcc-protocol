@@ -23,10 +23,38 @@ function isPlainObject(v: object): boolean {
   return proto === Object.prototype || proto === null;
 }
 
+/**
+ * True if the string carries a UTF-16 lone surrogate (a high surrogate not
+ * followed by a low one, or a stray low surrogate). Such a string has no valid
+ * UTF-8 encoding, so it is NOT canonicalizable — we reject it rather than let
+ * JSON.stringify silently emit a `\udXXX` escape (which the Python verifier
+ * cannot encode: this is where the two verifiers must agree, and where the
+ * Python side used to throw UnicodeEncodeError).
+ */
+function hasLoneSurrogate(s: string): boolean {
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c >= 0xd800 && c <= 0xdbff) {
+      const next = i + 1 < s.length ? s.charCodeAt(i + 1) : 0;
+      if (next < 0xdc00 || next > 0xdfff) return true;
+      i++; // valid surrogate pair — skip the low half
+    } else if (c >= 0xdc00 && c <= 0xdfff) {
+      return true; // lone low surrogate
+    }
+  }
+  return false;
+}
+
 function assertCanonicalizable(value: unknown, path: string): void {
   if (value === null) return;
   const t = typeof value;
-  if (t === "boolean" || t === "string") return;
+  if (t === "boolean") return;
+  if (t === "string") {
+    if (hasLoneSurrogate(value as string)) {
+      throw new Error(`lone surrogate at ${path}`);
+    }
+    return;
+  }
   if (t === "number") {
     if (!Number.isFinite(value as number)) {
       throw new Error(`non-finite number at ${path}`);

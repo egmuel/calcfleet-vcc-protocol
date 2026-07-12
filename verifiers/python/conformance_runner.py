@@ -52,6 +52,14 @@ def keyset_for(name: str | None) -> dict:
     if name == "wrong-algorithm":
         keys = [dict(k, algorithm="rsa") for k in ks["keys"]]
         return {"issuer": ks["issuer"], "keys": keys}
+    if name == "issuer-mismatch":
+        return {"issuer": "https://attacker.example", "keys": ks["keys"]}
+    if name == "future-key":
+        keys = [dict(k, validFrom="2099-01-01T00:00:00Z") for k in ks["keys"]]
+        return {"issuer": ks["issuer"], "keys": keys}
+    if name == "expired-key":
+        keys = [dict(k, validUntil="2020-01-01T00:00:00Z") for k in ks["keys"]]
+        return {"issuer": ks["issuer"], "keys": keys}
     return ks
 
 
@@ -105,6 +113,14 @@ def check_negative(file: Path) -> tuple[bool, str]:
     want_trust = exp.get("l1TrustedAtVerificationTime")
     if want_trust is not None and res.trustedAtVerificationTime != want_trust:
         problems.append(f"trustedAtVerificationTime={res.trustedAtVerificationTime} want {want_trust}")
+
+    want_bound = exp.get("l1IssuerIdentityBound")
+    if want_bound is not None and res.issuerIdentityBound != want_bound:
+        problems.append(f"issuerIdentityBound={res.issuerIdentityBound} want {want_bound}")
+
+    want_key_valid = exp.get("l1KeyValidAtIssuance")
+    if want_key_valid is not None and res.keyValidAtIssuance != want_key_valid:
+        problems.append(f"keyValidAtIssuance={res.keyValidAtIssuance} want {want_key_valid}")
 
     return (not problems, "; ".join(problems))
 

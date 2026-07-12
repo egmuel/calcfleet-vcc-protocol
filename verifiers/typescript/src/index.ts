@@ -25,4 +25,5 @@ export type {
   VccCertificateStatus,
   VccL1Checks,
   VccL1VerificationResult,
+  VccSignatureResult,
 } from "./types.js";

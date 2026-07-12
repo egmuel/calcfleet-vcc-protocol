@@ -1,0 +1,13 @@
+{
+  "issuer": "https://calcfleet.com",
+  "keys": [
+    {
+      "keyId": "test-2026-07",
+      "algorithm": "ed25519",
+      "publicKey": "O/P8RAy4Fug9PSa5vUSiDi5DlRoFGA0YZBXUkybDNRs=",
+      "status": "active",
+      "validFrom": "2026-07-11T00:00:00Z",
+      "validUntil": null
+    }
+  ]
+}

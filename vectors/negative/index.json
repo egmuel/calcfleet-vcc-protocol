@@ -15,6 +15,16 @@
     "unknown-key.json",
     "revoked-key.json",
     "withdrawn-certificate.json",
-    "unsupported-algorithm.json"
+    "unsupported-algorithm.json",
+    "issuer-keyset-mismatch.json",
+    "key-not-yet-valid.json",
+    "key-expired-at-issuance.json",
+    "dangerous-url-issuer.json",
+    "impossible-timestamp.json",
+    "formula-id-slug-mismatch.json",
+    "datasets-used-without-datasets.json",
+    "deep-nesting.json",
+    "lone-surrogate.json",
+    "second-signature-invalid.json"
   ]
 }

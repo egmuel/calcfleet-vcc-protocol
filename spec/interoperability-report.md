@@ -1,9 +1,7 @@
 # VCC Interoperability Report — cross-language verifier conformance (§50)
 
 Status: **Interoperable gate MET (v0.2, offline L1)** · Date: 2026-07-12
-Sources: [master §49, §50](../repositioning/master-prompt-vcc-first.md),
-[conformance suite §21](./conformance.md),
-[interoperability-plan](./interoperability-plan.md),
+Sources: [conformance suite §21](./conformance.md),
 [assurance-model §5.1](./assurance-model.md).
 
 > The **"Interoperable"** gate (§50) requires **≥2 independent verifiers** that

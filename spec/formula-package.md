@@ -2,7 +2,7 @@
 
 Status: **Draft v0.3-track** · 2026-07-12 · Formalizes the **Formula Package Manifest already shipped** (`docs/adr/ADR-003-formula-identity.md`, `src/lib/vcc/types.ts` `VccFormulaManifest`, manifests under `src/data/vcc/registry/<slug>/<version>.json`, CI version-gate `vcc:registry:verify`) and specifies the fields §31.2 requires beyond a file hash. No code change; fields not yet in the manifest are marked **MANCANTE / P1** and defer to the ADR where already decided.
 
-Source of truth: `docs/site-audit/vcc-standard-readiness-audit.md` §31.2.
+Source of truth: the internal VCC standard-readiness audit (§31.2).
 
 ---
 

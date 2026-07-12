@@ -2,7 +2,7 @@
 
 Status: **Draft v0.3-track** · 2026-07-12 · Formalizes and extends what VCC v0.2 already builds (`docs/vcc/spec-v0.2.md` §6, `docs/adr/ADR-004-key-management.md`). This document does **not** change code or the shipped format; it names the roles the master prompt §31.4 requires, maps each to what exists today, and marks what is implicit or missing.
 
-Source of truth for status claims: `docs/site-audit/vcc-standard-readiness-audit.md` §31.4.
+Source of truth for status claims: the internal VCC standard-readiness audit (§31.4).
 
 ---
 
@@ -56,24 +56,32 @@ The trust axes that VCC v0.2 *does* separate — `cryptographicValidity`, `issue
 
 *An independent party that reviews the formula/dataset/runtime and countersigns an attestation of that review.*
 
-- **What exists**: nothing. There is no auditor identity, no "auditor review" assurance axis, no countersignature in use. DSSE **supports multiple signatures** (`signatures[]`, ADR-001 §4) — the envelope could carry an auditor's co-signature — but v0.2 issues exactly one signature and nothing consumes a second.
+- **What exists**: no auditor *identity* and no "auditor review" assurance axis yet, so v0.2 still issues exactly one signature. But the verifier now **evaluates multi-signature envelopes** (see §2.9): a countersignature is no longer merely tolerated by the schema — it is verified, and a bogus one fails the whole envelope. The mechanism the auditor role needs is therefore in place; what is missing is the auditor *identity* and the axis that consumes the countersignature.
 - **Why it matters**: without it, "a valid signature ≠ an independent audit" (`spec-v0.2.md` §1) is stated as a *disclaimer* rather than backed by a *role* that could supply the missing assurance.
-- **Gap to close (v0.3)**: define an auditor attestation predicate + the "Auditor review" axis (`assurance-model.md` §2), reusing DSSE multi-sig; keep it strictly separate from the issuer signature (an issuer MUST NOT self-audit).
+- **Gap to close (v0.3)**: define an auditor attestation predicate + the "Auditor review" axis (`assurance-model.md` §2), consuming the countersignature slot that §2.9 already verifies; keep it strictly separate from the issuer signature (an issuer MUST NOT self-audit).
+
+### 2.9 Multi-signature semantics — **FATTO (verification)**
+
+*How the verifier treats an envelope carrying more than one signature.*
+
+- An envelope MAY carry **1..4 signatures with unique `keyid`s**. Verification evaluates **every** signature over the DSSE PAE; `checks.signature` is true iff there is ≥1 signature **and** every signature verifies with a known Ed25519 key (`keyKnown`/`algorithmSupported` are likewise the AND across all signatures, and `signatureResults[]` reports each `{ keyid, keyKnown, algorithmSupported, valid }` in order). This forbids two failure modes at once: a **bogus signature riding along a valid one**, and a **valid second signature being silently ignored when the first is invalid**.
+- The **primary (first)** signature's key is the issuer's and drives `issuerKeyStatus` and `keyValidAtIssuance`. Additional signatures are **countersignatures** (e.g. an auditor's co-signature over the same statement) — the seat the Auditor role (§2.5) will occupy.
+- Storage of multi-signature envelopes is governed by "verified-superset-wins" — see `ADR-006`.
 
 ### 2.6 Holder — **IMPLICITO (documented, not modeled)**
 
 *The party that possesses a receipt and chooses whether/where to share it.*
 
-- **What exists**: treated correctly in prose — receipts are shareable-by-construction, issued only on explicit `certify=1`, privacy-by-construction so a shared receipt reveals no requester identity (ADR-007, `privacy.md`). The holder's disclosure choice is the actual privacy control.
+- **What exists**: treated correctly in prose — receipts are shareable-by-construction, issued only on explicit `certify=1`, privacy-by-construction so a shared receipt reveals no requester identity (ADR-007, `privacy-profiles.md`). The holder's disclosure choice is the actual privacy control.
 - **Why implicit**: the holder is **not a party in the format** — no holder binding, no holder key, no selective-disclosure (the missing privacy profiles, audit §31.6). A receipt is bearer-style: whoever has the bytes can present it.
-- **Gap to close**: only if/when `encrypted-to-recipient` or `selective-disclosure` privacy profiles land (out of scope for v0.2; see `privacy.md`).
+- **Gap to close**: only if/when `encrypted-to-recipient` or `selective-disclosure` privacy profiles land (out of scope for v0.2; see `privacy-profiles.md`).
 
 ### 2.7 Verifier — **FATTO (single hard-wired policy)**
 
 *Checks a receipt and decides whether to accept it, under a chosen trust policy.*
 
 - **What exists**: a complete, offline-capable verifier (`verify-l1.ts` requires no network when given the keyset; L2 in `verify-l2.ts`), the public `/verify` and `/verify/{id}` surfaces, `POST /api/v1/verify`, and the reference CLI (`scripts/vcc/vcc-cli.ts`). The verifier-guide gives an 8-step L1 recipe implementable by third parties.
-- **Divergence from §7**: the trust policy is **single and hard-wired** — `trustedAtVerificationTime = cryptographicValidity ∧ key active ∧ certStatus ∈ {valid, unknown}` (`verify-l1.ts:142-145`). The §7 definition ("accepts the issuer identity and key **under a selected trust policy**") requires a *selectable* policy; today the verifier cannot be told "reject unknown certificate status" or "trust only issuer X". "Unknown status does not block trust" is itself an undeclared policy choice (reasonable, but not surfaced as one).
+- **Divergence from §7**: the trust policy is **single and hard-wired** — `trustedAtVerificationTime = cryptographicValidity ∧ issuerIdentityBound ∧ keyValidAtIssuance ∧ issuerKeyStatus === "active" ∧ certificateStatus ∈ {valid, unknown}` (`verify-l1.ts`). The two axes beyond `cryptographicValidity` matter here: `issuerIdentityBound` (the signing keyset is bound to the claimed `statement.issuer.id`, so a valid signature by an *unrelated* keyset is trusted for nothing) and `keyValidAtIssuance` (the signature was made inside the key's `validFrom/validUntil` window — this is state #4, "key active at signing time", now truthfully computed; see `assurance-model.md`). The §7 definition ("accepts the issuer identity and key **under a selected trust policy**") requires a *selectable* policy; today the verifier cannot be told "reject unknown certificate status" or "trust only issuer X". "Unknown status does not block trust" is itself an undeclared policy choice (reasonable, but not surfaced as one).
 - **Gap to close**: a policy parameter on the verify API/CLI + a named default policy; this is the verifier-side half of the trust registry.
 
 ### 2.8 Trust registry — **MANCANTE**
@@ -92,8 +100,8 @@ The trust axes that VCC v0.2 *does* separate — `cryptographicValidity`, `issue
 | Dataset publisher | Version reference data | IMPLICITO | `VccDatasetManifest`, `datasets.ts` | Publisher ≠ upstream `sources[]` |
 | Runtime operator | Execute & produce outputs | IMPLICITO | `engine` block; L2 re-run | Self-declared; no attestation; not independent |
 | Issuer | Sign + publish key discovery | **FATTO** | ADR-001/004, keyset | Single issuer only |
-| Auditor | Independent review + countersign | MANCANTE | — (DSSE multi-sig unused) | Whole role + axis |
-| Holder | Possess & disclose receipt | IMPLICITO | ADR-007, `privacy.md` | Not a format party; no selective disclosure |
+| Auditor | Independent review + countersign | MANCANTE (mechanism FATTO) | — (multi-sig verified, §2.9) | Auditor identity + review axis |
+| Holder | Possess & disclose receipt | IMPLICITO | ADR-007, `privacy-profiles.md` | Not a format party; no selective disclosure |
 | Verifier | Accept under a trust policy | **FATTO** (fixed policy) | `verify-l1.ts`, `/verify`, CLI | Policy hard-wired, not selectable |
 | Trust registry | Say who to trust | MANCANTE | — (single keyset) | Whole role — principal gap |
 
@@ -107,7 +115,7 @@ CalcFleet is **simultaneously formula publisher, dataset publisher, runtime oper
 - **What the issuer's signature proves / does not prove** → `assurance-model.md` §3.
 - **Formula-publisher artifact** → `formula-package.md`.
 - **Dataset-publisher artifact** → `dataset-manifest.md`.
-- **Holder disclosure & privacy** → `privacy.md`, ADR-007 (privacy profiles beyond "full" are audit §31.6, out of scope here).
+- **Holder disclosure & privacy** → `privacy-profiles.md`, ADR-007 (privacy profiles beyond "full" are audit §31.6, out of scope here).
 
 ## 6. Non-goals (v0.2 → v0.3 boundary)
 

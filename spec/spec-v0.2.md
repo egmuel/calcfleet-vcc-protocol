@@ -15,7 +15,7 @@ Media type: `application/vnd.vcc.statement+json;version=0.2`. Schema: `src/lib/v
 ```json
 {
   "specVersion": "0.2",
-  "type": "https://vcc.dev/statement/calculation/v0.2",
+  "type": "https://calcfleet.com/vcc/statement/calculation/v0.2",
   "subject": { "id": "urn:vcc:calculation:sha256:<hex64>", "kind": "deterministic-calculation" },
   "issuer": {
     "id": "https://calcfleet.com",
@@ -93,6 +93,8 @@ DSSE v1. `payload` = standard base64 of the JCS statement bytes; `payloadType` a
   "signatures": [ { "keyid": "2026-07-a", "sig": "<base64 of 64-byte Ed25519 sig>" } ] }
 ```
 
+An envelope MAY carry **1..4 signatures with unique `keyid`s**. Verification evaluates **every** signature: `checks.signature` is true iff there is ≥1 signature **and** every signature verifies over the DSSE PAE with a known Ed25519 key (`keyKnown`/`algorithmSupported` are likewise the AND across all signatures). This forbids a bogus signature riding along a valid one and forbids ignoring a valid second signature when the first is invalid. The **primary (first)** signature's key drives `issuerKeyStatus` and `keyValidAtIssuance`; additional signatures are countersignatures (e.g. an auditor's — see `trust-model.md`).
+
 The **envelope is the canonical certificate**. API responses include a parsed `statement` for convenience; verifiers MUST derive the statement from `payload` (ADR-001).
 
 ## 6. Key discovery & trust
@@ -107,18 +109,32 @@ The **envelope is the canonical certificate**. API responses include a parsed `s
               "validFrom": "…", "validUntil": null } ] }
 ```
 
-Verification results separate four axes:
+Verification results separate these axes:
 
 ```json
-{ "cryptographicValidity": true, "issuerKeyStatus": "active",
+{ "cryptographicValidity": true, "issuerIdentityBound": true,
+  "keyValidAtIssuance": true, "issuerKeyStatus": "active",
   "certificateStatus": "valid", "trustedAtVerificationTime": true }
 ```
 
-A cryptographically valid signature is **not** described as "trusted" unless key status and certificate status also allow it at verification time.
+`cryptographicValidity` is the AND of the nine per-check booleans (`envelopeSchema`, `payloadType`, `payloadDecodes`, `statementSchema`, `canonicalization`, `statementId`, `keyKnown`, `algorithmSupported`, `signature`) and covers **signature + integrity only**. Two further axes are reported alongside it and are deliberately **separate** from it:
+
+- **`issuerIdentityBound`** (bool): true iff `keyset.issuer === statement.issuer.id`. A signature validly made by a keyset that is **not** bound to the claimed issuer proves the bytes were signed by *some* key, but nothing attributable to the named issuer — so this cannot be folded into `cryptographicValidity`.
+- **`keyValidAtIssuance`** (bool): true iff the signing key's window covered the statement's `issuedAt` (`validFrom <= issuedAt` **and** (`validUntil === null` **or** `issuedAt <= validUntil`)). A historical receipt signed inside the window keeps its `cryptographicValidity` even after the key later expires; a signature made **outside** the window is flagged here without disturbing the timeless math. Timestamps are fixed-width UTC, so a lexicographic compare is a chronological one.
+
+The L1 result also carries **`signatureResults`**: one `{ keyid, keyKnown, algorithmSupported, valid }` per envelope signature, in envelope order (see §5 on multi-signature envelopes).
+
+A cryptographically valid signature is **not** described as "trusted" unless it is also identity-bound, was made while the key was valid, and key status and certificate status allow it at verification time:
+
+```
+trustedAtVerificationTime =
+  cryptographicValidity ∧ issuerIdentityBound ∧ keyValidAtIssuance
+    ∧ issuerKeyStatus === "active" ∧ (certificateStatus ∈ {valid, unknown})
+```
 
 ## 7. Verification levels
 
-**L1 (authenticity + integrity, offline-capable)** — `verifyVccEnvelope(envelope, keys)`: envelope schema → payloadType → base64 decode → statement schema (strict) → JCS re-canonicalization must equal payload bytes → subject.id recomputation → Ed25519 over PAE with the keyset entry matching `keyid` → algorithm check → key/certificate status when available. Requires no network when the caller supplies the keyset.
+**L1 (authenticity + integrity, offline-capable)** — `verifyVccEnvelope(envelope, keys)`: envelope schema → payloadType → base64 decode → statement schema (strict) → JCS re-canonicalization must equal payload bytes → subject.id recomputation → Ed25519 over PAE for **every** signature with the keyset entry matching each `keyid` → algorithm check → `issuerIdentityBound` (keyset issuer vs `statement.issuer.id`) → `keyValidAtIssuance` (signing key window vs `issuedAt`) → key/certificate status when available. Requires no network when the caller supplies the keyset. Never throws on untrusted input: any internal error yields a well-formed all-false result.
 
 **L2 (reproducibility, local allowlist)** — `reproduceVccCalculation(statement, registry)`: formula resolved **only** from the local registry; manifest digest compared before execution; datasets checked by digest; inputs decoded, schema-revalidated, re-executed, outputs re-normalized and diffed. Status: `match | mismatch | not-reproducible | formula-unavailable | dataset-unavailable | unsupported-profile | execution-failed`. `formula-unavailable` is not an L1 failure.
 
@@ -139,7 +155,7 @@ Certification requested but unavailable ⇒ HTTP 200 with `certificate: null` + 
 
 ## 9. Non-goals & extension points (v0.2)
 
-No blockchain/tokens/ZK; no remote or third-party formula execution; no marketplace; no regulatory claims; no trust scores; no external timestamping (RFC 3161/transparency log = documented extension point); no graph pipeline certificates yet (`https://vcc.dev/statement/pipeline/v0.2` reserved; per-node VCC + edges + rootDigest as in the master plan — lands after pilot stabilization). Dataset-reading formulas (ai-pricing) certify only after their Dataset Manifests ship in statements (infra present, formulas gated off).
+No blockchain/tokens/ZK; no remote or third-party formula execution; no marketplace; no regulatory claims; no trust scores; no external timestamping (RFC 3161/transparency log = documented extension point); no graph pipeline certificates yet (`https://calcfleet.com/vcc/statement/pipeline/v0.2` reserved; per-node VCC + edges + rootDigest as in the master plan — lands after pilot stabilization). Dataset-reading formulas (ai-pricing) certify only after their Dataset Manifests ship in statements (infra present, formulas gated off).
 
 ## 10. Feature flags
 

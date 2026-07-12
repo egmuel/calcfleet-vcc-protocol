@@ -33,8 +33,12 @@ In scope:
 - key handling and the separation between the **test issuer** and any future
   **production issuer** (a test-key receipt carries no production assurance);
 - API/MCP input validation, rate limiting and abuse prevention;
-- privacy of receipts and of the transparency log (no sensitive inputs are
-  published).
+- privacy handling of receipts. Note: a VCC is a **bearer document** that
+  contains **every declared numeric input** in the clear. Even without a name or
+  email, those numbers can be sensitive in context (loan amounts, income, age,
+  medical figures). There is **no** selective disclosure, redaction, or
+  encryption yet, so a VCC must be treated as potentially sensitive and shared
+  only deliberately.
 
 Out of scope / known limitations (documented, not hidden):
 
@@ -46,5 +50,9 @@ Out of scope / known limitations (documented, not hidden):
 
 ## No blockchain
 
-The transparency log is an append-only, Merkle-root log. It does not use a
-blockchain and does not publish sensitive inputs.
+External timestamping (RFC 3161) and a transparency log are a **documented but
+currently unimplemented** extension point (see `spec/spec-v0.2.md` §9). VCC does
+**not** use a blockchain, tokens, or any distributed ledger, and there is no
+plan to. Because a VCC carries all declared numeric inputs in the clear (see
+Scope above), any such log, if it ships, must be designed so it does not itself
+publish sensitive inputs.

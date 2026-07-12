@@ -1,0 +1,348 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://calcfleet.com/vcc/schema/statement/v0.2.json",
+  "title": "VCC Calculation Statement (v0.2)",
+  "description": "Full portable JSON Schema (Draft 2020-12) for a VCC deterministic-calculation statement — the signed DSSE payload. Mirrors `statementSchema` in verifiers/typescript/src/schemas.ts field-by-field (post-hardening per CONTRACT.md). schemas.ts remains the runtime source of truth; this must accept/reject the same shapes. Cross-field semantic invariants that pure JSON Schema cannot express are documented as $comment and implemented where expressible (if/then, minProperties).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "specVersion",
+    "type",
+    "subject",
+    "issuer",
+    "formula",
+    "calculation",
+    "datasets",
+    "evidence",
+    "engine",
+    "attestation",
+    "issuedAt",
+    "context"
+  ],
+  "$defs": {
+    "safeHttpsUrl": {
+      "$comment": "CONTRACT §3: JSON Schema can only express format+pattern. The full isSafeHttpsUrl (no userinfo, reject localhost/*.local/private-and-reserved IP literals) is enforced by the verifier at runtime, not here. We require format:uri and an https:// prefix pattern (blocks javascript:, file:, http:, data:).",
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://"
+    },
+    "digest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "value"],
+      "properties": {
+        "algorithm": { "const": "sha-256" },
+        "value": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "typedValue": {
+      "$comment": "typedValueSchema in schemas.ts. Numeric typed value. DECIMAL_VALUE_RE for value; scale 0..12; unit UNIT_RE. Cross-field rules (scale==digits of fraction, no negative zero) are enforced by the Zod superRefine at runtime and only partly expressible here. Unit constraints per CONTRACT §6 applied via allOf/if-then below.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "value", "scale"],
+      "properties": {
+        "type": {
+          "enum": ["integer", "decimal", "percent", "ratio", "money", "duration"]
+        },
+        "value": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+        },
+        "scale": { "type": "integer", "minimum": 0, "maximum": 12 },
+        "unit": {
+          "type": "string",
+          "pattern": "^[%A-Za-z][%A-Za-z0-9/·°²³-]{0,15}$"
+        }
+      },
+      "allOf": [
+        {
+          "$comment": "CONTRACT §6: money — unit REQUIRED and MUST match ISO-4217 shape ^[A-Z]{3}$.",
+          "if": { "properties": { "type": { "const": "money" } }, "required": ["type"] },
+          "then": {
+            "required": ["unit"],
+            "properties": { "unit": { "type": "string", "pattern": "^[A-Z]{3}$" } }
+          }
+        },
+        {
+          "$comment": "CONTRACT §6: percent — if unit present it MUST be '%'.",
+          "if": { "properties": { "type": { "const": "percent" } }, "required": ["type"] },
+          "then": { "properties": { "unit": { "const": "%" } } }
+        },
+        {
+          "$comment": "CONTRACT §6: duration — unit REQUIRED and one of the time-unit enum.",
+          "if": { "properties": { "type": { "const": "duration" } }, "required": ["type"] },
+          "then": {
+            "required": ["unit"],
+            "properties": {
+              "unit": {
+                "enum": ["years", "months", "weeks", "days", "hours", "minutes", "seconds"]
+              }
+            }
+          }
+        },
+        {
+          "$comment": "CONTRACT §6: ratio — unit MUST be absent.",
+          "if": { "properties": { "type": { "const": "ratio" } }, "required": ["type"] },
+          "then": { "not": { "required": ["unit"] } }
+        }
+      ]
+    },
+    "calcValue": {
+      "$comment": "calcValueSchema in schemas.ts (recursive z.lazy union). A value tree: typedValue | bounded short string (SHORT_STRING_RE) | boolean | array<=1024 of calcValue | record with identifier keys of calcValue. Strings are closed enums/labels, never free text (ADR-007).",
+      "oneOf": [
+        { "$ref": "#/$defs/typedValue" },
+        {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9 _/.,:()%+–—-]{0,63}$"
+        },
+        { "type": "boolean" },
+        {
+          "type": "array",
+          "maxItems": 1024,
+          "items": { "$ref": "#/$defs/calcValue" }
+        },
+        {
+          "type": "object",
+          "propertyNames": { "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$" },
+          "additionalProperties": { "$ref": "#/$defs/calcValue" }
+        }
+      ]
+    },
+    "sourceRef": {
+      "$comment": "sourceRefSchema in schemas.ts: {label 1..200, url safe-https max 500}.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "url"],
+      "properties": {
+        "label": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "url": {
+          "allOf": [{ "$ref": "#/$defs/safeHttpsUrl" }, { "maxLength": 500 }]
+        }
+      }
+    }
+  },
+  "properties": {
+    "specVersion": { "const": "0.2" },
+    "type": {
+      "const": "https://calcfleet.com/vcc/statement/calculation/v0.2"
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^urn:vcc:calculation:sha256:[0-9a-f]{64}$"
+        },
+        "kind": { "const": "deterministic-calculation" }
+      }
+    },
+    "issuer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "keyDiscovery"],
+      "properties": {
+        "id": {
+          "allOf": [{ "$ref": "#/$defs/safeHttpsUrl" }, { "maxLength": 200 }]
+        },
+        "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "keyDiscovery": {
+          "allOf": [{ "$ref": "#/$defs/safeHttpsUrl" }, { "maxLength": 300 }]
+        }
+      }
+    },
+    "formula": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "slug", "version", "digest", "registry", "visibility"],
+      "$comment": "CONTRACT §5 cross-field invariant: formula.id === 'urn:vcc:formula:' + formula.slug. Pure JSON Schema cannot compare two sibling fields; the verifier's superRefine enforces the exact equality. Here we constrain each independently to its pattern.",
+      "properties": {
+        "id": { "type": "string", "pattern": "^urn:vcc:formula:[a-z0-9-]+$" },
+        "slug": {
+          "type": "string",
+          "maxLength": 80,
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+        },
+        "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+        "digest": { "$ref": "#/$defs/digest" },
+        "registry": {
+          "allOf": [{ "$ref": "#/$defs/safeHttpsUrl" }, { "maxLength": 400 }]
+        },
+        "visibility": { "const": "open" }
+      }
+    },
+    "calculation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["inputs", "outputs", "numericProfile"],
+      "$comment": "CONTRACT §5: calculation.inputs and calculation.outputs each MUST have >=1 entry. Expressed with minProperties:1.",
+      "properties": {
+        "inputs": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$" },
+          "additionalProperties": { "$ref": "#/$defs/calcValue" }
+        },
+        "outputs": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$" },
+          "additionalProperties": { "$ref": "#/$defs/calcValue" }
+        },
+        "numericProfile": { "const": "vcc-decimal-v1" }
+      }
+    },
+    "datasets": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name", "version", "digest", "mediaType"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^urn:vcc:dataset:[a-z0-9-]+$" },
+          "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "version": { "type": "string", "minLength": 1, "maxLength": 40 },
+          "digest": { "$ref": "#/$defs/digest" },
+          "mediaType": { "type": "string", "minLength": 3, "maxLength": 100 }
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sources", "testsDigest"],
+      "properties": {
+        "sources": {
+          "type": "array",
+          "maxItems": 20,
+          "items": { "$ref": "#/$defs/sourceRef" }
+        },
+        "testsDigest": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "engine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "commit", "runtimeProfile"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "version": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "commit": { "type": "string", "pattern": "^([0-9a-f]{7,40}|unknown)$" },
+        "runtimeProfile": { "const": "node-deterministic-v1" }
+      }
+    },
+    "attestation": {
+      "$comment": "attestationSchema in schemas.ts. uniqueItems covers claim-uniqueness. CONTRACT §5 required-claims-by-type (execution/reproduction/review) is a cross-field rule between type and claims; expressed here with if/then/contains for each type, mirroring the verifier superRefine.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "claims"],
+      "properties": {
+        "type": { "enum": ["execution", "reproduction", "review"] },
+        "claims": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "inputs-received",
+              "formula-executed",
+              "datasets-used",
+              "numeric-profile-applied",
+              "output-produced"
+            ]
+          }
+        }
+      },
+      "allOf": [
+        {
+          "$comment": "CONTRACT §5: execution requires all of {inputs-received, formula-executed, output-produced}.",
+          "if": { "properties": { "type": { "const": "execution" } }, "required": ["type"] },
+          "then": {
+            "properties": {
+              "claims": {
+                "allOf": [
+                  { "contains": { "const": "inputs-received" } },
+                  { "contains": { "const": "formula-executed" } },
+                  { "contains": { "const": "output-produced" } }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "$comment": "CONTRACT §5: reproduction requires {formula-executed, output-produced}.",
+          "if": { "properties": { "type": { "const": "reproduction" } }, "required": ["type"] },
+          "then": {
+            "properties": {
+              "claims": {
+                "allOf": [
+                  { "contains": { "const": "formula-executed" } },
+                  { "contains": { "const": "output-produced" } }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "$comment": "CONTRACT §5: review requires {formula-executed}.",
+          "if": { "properties": { "type": { "const": "review" } }, "required": ["type"] },
+          "then": {
+            "properties": {
+              "claims": { "contains": { "const": "formula-executed" } }
+            }
+          }
+        }
+      ]
+    },
+    "issuedAt": {
+      "$comment": "CONTRACT §4 / ISSUED_AT_RE. Pattern enforces the fixed-width seconds-precision UTC shape. The full isValidUtcTimestamp (real calendar day, month 1..12, leap-year day count, no leap-second 60) is enforced by the verifier at runtime — JSON Schema pattern cannot validate calendar arithmetic, so e.g. 2026-99-99T99:99:99Z fails the runtime check but a naive regex without bounds would pass. This pattern bounds month/day/hour/minute/second ranges as tightly as a regex allows.",
+      "type": "string",
+      "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]Z$"
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["surface"],
+      "properties": {
+        "surface": { "enum": ["api", "web", "mcp", "graph"] },
+        "requestId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{8,64}$" }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "$comment": "CONTRACT §5 biconditional: attestation.claims includes 'datasets-used' IFF datasets.length > 0. Implemented in both directions with if/then. (a) if datasets non-empty then claims must contain datasets-used.",
+      "if": {
+        "properties": { "datasets": { "minItems": 1 } },
+        "required": ["datasets"]
+      },
+      "then": {
+        "properties": {
+          "attestation": {
+            "properties": { "claims": { "contains": { "const": "datasets-used" } } }
+          }
+        }
+      }
+    },
+    {
+      "$comment": "CONTRACT §5 biconditional (other direction): if datasets is empty then claims must NOT contain datasets-used.",
+      "if": {
+        "properties": { "datasets": { "maxItems": 0 } },
+        "required": ["datasets"]
+      },
+      "then": {
+        "properties": {
+          "attestation": {
+            "properties": {
+              "claims": { "not": { "contains": { "const": "datasets-used" } } }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

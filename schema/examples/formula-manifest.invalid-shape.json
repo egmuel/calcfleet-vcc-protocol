@@ -1,0 +1,88 @@
+{
+  "id": "urn:vcc:formula:personal-loan-calculator",
+  "slug": "personal-loan-calculator",
+  "version": "1.0.0",
+  "entrypoint": "src/tools/personal-loan/calc.ts#calcPersonalLoan",
+  "inputSchemaDigest": {
+    "algorithm": "sha-256",
+    "value": "e6dee2a0d2b6f1c4a3e5b7d9f0c1a2b3c4d5e6f708192a3b4c5d6e7f80912a3b4"
+  },
+  "outputSchemaDigest": {
+    "algorithm": "sha-256",
+    "value": "5aa5ad00112233445566778899aabbccddeeff00112233445566778899aabbcc"
+  },
+  "implementationDigest": {
+    "algorithm": "sha-256",
+    "value": "e7055f00112233445566778899aabbccddeeff00112233445566778899aabbcc"
+  },
+  "testsDigest": {
+    "algorithm": "sha-256",
+    "value": "cd6a7138e9b143f6fd981b4ecd1231283fd565c998d3d653d8e402e14f078ff2"
+  },
+  "dependencies": [
+    {
+      "name": "zod",
+      "version": "4.4.3"
+    }
+  ],
+  "datasets": [],
+  "sources": [],
+  "numericProfile": "vcc-decimal-v1",
+  "numericDictionary": {
+    "inputs": {
+      "principal": {
+        "type": "money",
+        "scale": 2,
+        "unit": "USD"
+      },
+      "annualRatePct": {
+        "type": "percent",
+        "scale": 4,
+        "unit": "%"
+      },
+      "termMonths": {
+        "type": "duration",
+        "scale": 0,
+        "unit": "months"
+      },
+      "originationFeePct": {
+        "type": "percent",
+        "scale": 4,
+        "unit": "%"
+      }
+    },
+    "outputs": {
+      "monthlyPayment": {
+        "type": "money",
+        "scale": 2,
+        "unit": "USD"
+      },
+      "totalInterest": {
+        "type": "money",
+        "scale": 2,
+        "unit": "USD"
+      },
+      "totalPaid": {
+        "type": "money",
+        "scale": 2,
+        "unit": "USD"
+      },
+      "originationFee": {
+        "type": "money",
+        "scale": 2,
+        "unit": "USD"
+      },
+      "nominalAprPct": {
+        "type": "percent",
+        "scale": 4,
+        "unit": "%"
+      },
+      "effectiveAprPct": {
+        "type": "percent",
+        "scale": 4,
+        "unit": "%"
+      }
+    }
+  },
+  "extra": "x"
+}

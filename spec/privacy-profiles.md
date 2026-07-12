@@ -1,9 +1,16 @@
 # VCC Privacy Profiles — piano (§31.6)
 
 Status: **Piano (v0.3+)** · Data: 2026-07-12 · Isola VCC-B, FASE 1.
-Fonti: [audit §31.6](../site-audit/vcc-standard-readiness-audit.md), [ADR-007](../adr/ADR-007-privacy-model.md), [spec §2/§8](./spec-v0.2.md), [privacy.md](./privacy.md).
+Fonti: [ADR-007](../adr/ADR-007-privacy-model.md), [spec §2/§8](./spec-v0.2.md).
 
 > Questo documento **pianifica** i cinque privacy profiles del master (§31.6) e le privacy features di /verify (§30). Non modifica il costruito. Termini normativi (MUST/SHOULD/MAY) in inglese.
+
+> **Onestà (v0.2).** Oggi non esiste alcun selective disclosure, redaction o
+> encryption: un VCC è un **bearer document** che porta **in chiaro tutti gli
+> input numerici dichiarati**. Anche senza nome o email, quei numeri possono
+> essere sensibili nel contesto (importi di prestito, reddito, età, valori
+> medici). Un VCC va quindi trattato come potenzialmente sensibile e condiviso
+> solo deliberatamente. I profili sotto sono **piano**, non costruito.
 
 ---
 
@@ -11,7 +18,7 @@ Fonti: [audit §31.6](../site-audit/vcc-standard-readiness-audit.md), [ADR-007](
 
 Oggi VCC v0.2 implementa **un solo profilo, implicito e non nominato: "full"**, con privacy **by construction** (audit §31.6). Non esiste un sistema di profili selezionabili; il campo `statement.privacyProfile` **non esiste** nello schema (`src/lib/vcc/schemas.ts`, Zod strict). Il "full" attuale è forte ma è un'altra cosa dai cinque profili chiesti dal master.
 
-Il "full" attuale poggia su tre lock fail-closed ([ADR-007](../adr/ADR-007-privacy-model.md), [privacy.md](./privacy.md)):
+Il "full" attuale poggia su tre lock fail-closed ([ADR-007](../adr/ADR-007-privacy-model.md)):
 
 1. **Solo formule number-shaped** — ogni input è `number | boolean | closed enum`; un solo campo free-text squalifica la formula dalla certificazione.
 2. **Schema allowlist strict** — la PII non può viaggiare in campi extra perché i campi extra non esistono (Zod strict).
@@ -27,7 +34,7 @@ ADR-007 **ha rifiutato la redaction**, ma di una forma **diversa** da quella del
 
 ## 2. I cinque profili (§31.6) — design proposto
 
-Tutti i profili condividono un principio: **il profilo è dichiarato dentro lo statement e coperto dalla firma**. Introdurre `statement.privacyProfile` è un **cambio di formato** ⇒ spec bump (v0.3), gestito dalla change-process di [governance-plan.md](./governance-plan.md). Un verifier v0.2 che riceve un profilo sconosciuto **MUST** fallire in modo esplicito (payloadType/specVersion bump), mai degradare silenziosamente.
+Tutti i profili condividono un principio: **il profilo è dichiarato dentro lo statement e coperto dalla firma**. Introdurre `statement.privacyProfile` è un **cambio di formato** ⇒ spec bump (v0.3), gestito dalla change-process di [governance](./governance.md). Un verifier v0.2 che riceve un profilo sconosciuto **MUST** fallire in modo esplicito (payloadType/specVersion bump), mai degradare silenziosamente.
 
 Campo proposto:
 
@@ -80,11 +87,11 @@ L'audit §30 misura queste feature contro il costruito. Piano incrementale:
 
 | Feature (§30) | Oggi | Piano |
 |---|---|---|
-| **Local verification (in-browser)** | Il paste verifier POSTa al server (`VccPasteVerifier.tsx`); local solo via CLI offline | **WebCrypto Ed25519** (già notato come possibile in ADR-001) su /verify: L1 interamente nel browser, zero upload dell'envelope. È anche il gap privacy più visibile; abilitato dallo stesso lavoro che pubblica il TS SDK ([interoperability-plan §SDK](./interoperability-plan.md)) |
+| **Local verification (in-browser)** | Il paste verifier POSTa al server (`VccPasteVerifier.tsx`); local solo via CLI offline | **WebCrypto Ed25519** (già notato come possibile in ADR-001) su /verify: L1 interamente nel browser, zero upload dell'envelope. È anche il gap privacy più visibile; abilitato dallo stesso lavoro che pubblica il TS SDK ([interoperability report §SDK](./interoperability-report.md)) |
 | **Upload (file)** | Solo textarea paste | Aggiungere `<input type=file>` accanto alla textarea; la verifica resta locale |
 | **Explicit sharing** | FATTO come postura (`certify=1`, "nothing you paste is stored") | Mantenere; nessuna emissione silenziosa **MUST** restare invariante |
 | **Expiration** | MANCANTE (nessun TTL su certificati/store) | Campo opzionale `statement.expiresAt` (coperto dalla firma) + TTL opzionale sullo store; un verifier segnala `expired` come **stato separato**, mai come `authentic:false` (la firma resta matematicamente valida) |
-| **Deletion** | MANCANTE (store append-only, "never delete" ADR-006) | Meccanismo per cui l'holder chiede la rimozione dal *store* (non tocca copie condivise, immutabili by design); risolve la tensione GDPR di ADR-006/privacy.md a livello di **policy**, non di crittografia |
+| **Deletion** | MANCANTE (store append-only, "never delete" ADR-006) | Meccanismo per cui l'holder chiede la rimozione dal *store* (non tocca copie condivise, immutabili by design); risolve la tensione GDPR di ADR-006 a livello di **policy**, non di crittografia |
 | **Private / redacted / hash-only receipt** | MANCANTE | Coperte dai profili §2 sopra |
 
 Invarianti trasversali che ogni feature **MUST** preservare: (a) nessun "verified" singolo; (b) i quattro assi (`authentic/intact/reproducible/trusted`) restano ortogonali; `expired`/`redacted` sono **stati aggiuntivi**, non collassano su questi quattro; (c) la firma è timeless — expiration e deletion sono metadati/operazioni di store, non invalidano la matematica.
@@ -93,7 +100,7 @@ Invarianti trasversali che ogni feature **MUST** preservare: (a) nessun "verifie
 
 ## 4. Sequenza e prerequisiti
 
-1. **Spec bump v0.3** con `statement.privacy` opzionale (default assente ≡ `full`) — governato da [governance-plan.md](./governance-plan.md).
+1. **Spec bump v0.3** con `statement.privacy` opzionale (default assente ≡ `full`) — governato da [governance](./governance.md).
 2. **`full` esplicito** — costo minimo, sblocca la nomenclatura.
 3. **Local in-browser verification + upload** — indipendente dai profili, alto valore percepito; agganciato al TS SDK.
 4. **`redacted`** solo dopo il **nuovo ADR** che supera la divergenza §1.1.

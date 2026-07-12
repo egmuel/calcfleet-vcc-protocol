@@ -10,7 +10,7 @@
 
 - Static shapes: `src/lib/vcc/types.ts` (`VccStatement`).
 - Runtime validation: `src/lib/vcc/schemas.ts` (Zod, strict — unknown keys rejected everywhere). This is the authoritative schema.
-- Portable JSON Schema (attestation slice): `src/lib/vcc/schema.ts` (`VCC_ATTESTATION_JSON_SCHEMA`, Draft 2020-12) for third parties that cannot run the Zod schema. A full standalone JSON Schema of the whole statement is tracked in `conformance-plan.md`.
+- Portable JSON Schema (attestation slice): `src/lib/vcc/schema.ts` (`VCC_ATTESTATION_JSON_SCHEMA`, Draft 2020-12) for third parties that cannot run the Zod schema. A full standalone JSON Schema of the whole statement (statement/envelope/keyset) is being added under `schema/`; see [conformance](./conformance.md).
 - Golden vectors pin the bytes: `src/lib/vcc/vectors/*.json` (regenerate with `npm run vcc:vectors` — never by hand; `vectors.test.ts` fails on drift).
 
 ## Field map (master §15 → statement)

@@ -32,4 +32,4 @@ Certificates are meant to be posted publicly (forums, PRs, AI-agent transcripts)
 
 ## Risks
 
-- Numeric inputs can themselves be sensitive in context (a salary is a number). Mitigation is user-side disclosure choice: certificates are issued only when explicitly requested (`certify=1`), documented in `docs/vcc/privacy.md`, and never stored unless the store flag is on.
+- Numeric inputs can themselves be sensitive in context (a salary is a number). Mitigation is user-side disclosure choice: certificates are issued only when explicitly requested (`certify=1`), documented in `spec/privacy-profiles.md`, and never stored unless the store flag is on. Even so, a VCC is a bearer document that carries every declared numeric input in the clear — with no selective disclosure, redaction, or encryption yet — so those numbers can be sensitive in context and a VCC must be treated as potentially sensitive.

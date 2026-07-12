@@ -7,6 +7,10 @@ which version, on which normalized inputs, under which numeric rules, producing
 which output* — content-addressed and signed, so anyone can check its integrity
 and provenance **offline**, without trusting the issuer's servers.
 
+Portable signed calculation receipts with offline L1 verification; a standalone
+L2 reproduction is included as a reference for the compound-interest formula
+(see `l2/`).
+
 > VCC is **experimental**. This is not a mature or ratified standard.
 > [CalcFleet](https://calcfleet.com) is its **first reference implementation** —
 > but the point of this repository is that you can implement and verify VCC
@@ -26,7 +30,7 @@ decision. See [`spec/trust-model.md`](spec/trust-model.md) and
 |---|---|
 | [`spec/`](spec/) | The normative specification: data model, numeric profiles, formula packages, dataset manifests, assurance & trust models, privacy profiles, conformance, security/threat model, governance, the interoperability report, and integration guides. |
 | [`adr/`](adr/) | Architecture Decision Records — the decision log (§ envelope, numeric semantics, formula identity, key management, L2 reproduction, storage, privacy). |
-| [`schema/`](schema/) | The portable JSON Schema for the receipt. |
+| [`schema/`](schema/) | Portable JSON Schema for the receipt. A full standalone JSON Schema covering the statement, envelope, and keyset is being added. |
 | [`vectors/`](vectors/) | Conformance test vectors: 4 valid golden receipts + 15 negative cases (invalid signature, modified payload, wrong digest, unknown formula, revoked key, …), each pinning the axis that must fail. |
 | [`verifiers/typescript/`](verifiers/typescript/) | Reference verifier in TypeScript (offline, WebCrypto). |
 | [`verifiers/python/`](verifiers/python/) | An **independent** verifier in Python (from scratch, offline). |

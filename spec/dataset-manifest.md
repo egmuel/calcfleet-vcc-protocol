@@ -2,7 +2,7 @@
 
 Status: **Draft v0.3-track** · 2026-07-12 · Formalizes the versioned Dataset Manifest already shipped as infrastructure (`src/lib/vcc/datasets.ts` → `VccDatasetManifest`, committed under `src/data/vcc/registry/datasets/<name>/<version>.json`) and specifies the full field set §24 requires for the Dataset Registry, mapped onto the benchmark datasets already present in `src/data/benchmarks/`. No code change; fields not yet in the shipped manifest are marked **MANCANTE**.
 
-Source of truth: `docs/site-audit/vcc-standard-readiness-audit.md` §31.2/§31 and `src/lib/vcc/datasets.ts`.
+Source of truth: the internal VCC standard-readiness audit (§31.2/§31) and `src/lib/vcc/datasets.ts`.
 
 ---
 
@@ -12,7 +12,7 @@ Source of truth: `docs/site-audit/vcc-standard-readiness-audit.md` §31.2/§31 a
 
 ## 2. The shipped Dataset Manifest
 
-Typed as `VccDatasetManifest` (`types.ts:315-326`), derived **deterministically from the very module the calcs import** (`datasets.ts`), and committed at `src/data/vcc/registry/datasets/<name>/<version>.json`. The CI gate fails if the committed manifest ever drifts from the in-repo data (dataset changed without a vintage bump). No pilot formula consumes a dataset yet — this is proven infrastructure the AI-economics formulas will use on migration (`datasets.ts` header, `migration-plan.md`).
+Typed as `VccDatasetManifest` (`types.ts:315-326`), derived **deterministically from the very module the calcs import** (`datasets.ts`), and committed at `src/data/vcc/registry/datasets/<name>/<version>.json`. The CI gate fails if the committed manifest ever drifts from the in-repo data (dataset changed without a vintage bump). No pilot formula consumes a dataset yet — this is proven infrastructure the AI-economics formulas will use on migration (`datasets.ts` header).
 
 Real shipped example (`src/data/vcc/registry/datasets/ai-pricing/2026-07.json`):
 

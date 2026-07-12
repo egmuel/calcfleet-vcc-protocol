@@ -1,0 +1,118 @@
+{
+  "specVersion": "0.2",
+  "type": "https://calcfleet.com/vcc/statement/calculation/v0.2",
+  "subject": {
+    "id": "urn:vcc:calculation:sha256:e0ec93cd0f182dab650ae862f08c6abd6a6f67404533ee4d0398ee33d534fc11",
+    "kind": "deterministic-calculation"
+  },
+  "issuer": {
+    "id": "https://calcfleet.com",
+    "name": "CalcFleet",
+    "keyDiscovery": "https://calcfleet.com/.well-known/vcc-issuer.json"
+  },
+  "formula": {
+    "id": "urn:vcc:formula:personal-loan-calculator",
+    "slug": "personal-loan-calculator",
+    "version": "1.0.0",
+    "digest": {
+      "algorithm": "sha-256",
+      "value": "620f22e8ae3de5e2c18df70561928d5a6a5781c9867eb2b27a28f00780e60fb5"
+    },
+    "registry": "https://calcfleet.com/vcc/registry/personal-loan-calculator/1.0.0",
+    "visibility": "open"
+  },
+  "calculation": {
+    "inputs": {
+      "principal": {
+        "type": "money",
+        "value": "20000.00",
+        "scale": 2,
+        "unit": "USD"
+      },
+      "annualRatePct": {
+        "type": "percent",
+        "value": "7.5000",
+        "scale": 4,
+        "unit": "%"
+      },
+      "termMonths": {
+        "type": "duration",
+        "value": "60",
+        "scale": 0,
+        "unit": "months"
+      },
+      "originationFeePct": {
+        "type": "percent",
+        "value": "1.0000",
+        "scale": 4,
+        "unit": "%"
+      }
+    },
+    "outputs": {
+      "monthlyPayment": {
+        "type": "money",
+        "value": "400.76",
+        "scale": 2,
+        "unit": "USD"
+      },
+      "totalInterest": {
+        "type": "money",
+        "value": "4045.54",
+        "scale": 2,
+        "unit": "USD"
+      },
+      "totalPaid": {
+        "type": "money",
+        "value": "24045.54",
+        "scale": 2,
+        "unit": "USD"
+      },
+      "originationFee": {
+        "type": "money",
+        "value": "200.00",
+        "scale": 2,
+        "unit": "USD"
+      },
+      "nominalAprPct": {
+        "type": "percent",
+        "value": "7.5000",
+        "scale": 4,
+        "unit": "%"
+      },
+      "effectiveAprPct": {
+        "type": "percent",
+        "value": "7.9200",
+        "scale": 4,
+        "unit": "%"
+      }
+    },
+    "numericProfile": "vcc-decimal-v1"
+  },
+  "datasets": [],
+  "evidence": {
+    "sources": [],
+    "testsDigest": {
+      "algorithm": "sha-256",
+      "value": "cd6a7138e9b143f6fd981b4ecd1231283fd565c998d3d653d8e402e14f078ff2"
+    }
+  },
+  "engine": {
+    "name": "calcfleet-engine",
+    "version": "0.1.0",
+    "commit": "unknown",
+    "runtimeProfile": "node-deterministic-v1"
+  },
+  "attestation": {
+    "type": "execution",
+    "claims": [
+      "inputs-received",
+      "formula-executed",
+      "datasets-used",
+      "output-produced"
+    ]
+  },
+  "issuedAt": "2026-07-11T12:00:00Z",
+  "context": {
+    "surface": "api"
+  }
+}

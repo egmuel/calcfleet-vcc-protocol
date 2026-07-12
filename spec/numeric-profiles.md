@@ -2,7 +2,7 @@
 
 Status: **Draft v0.3-track** · 2026-07-12 · Formalizes the numeric profile `vcc-decimal-v1` **already implemented and tested** (`src/lib/vcc/numeric.ts`, `docs/adr/ADR-002-numeric-semantics.md`, `spec-v0.2.md` §3) and defines the additional profiles §31.1 enumerates. Normative words (MUST/SHOULD/MUST NOT) bind conforming implementations. This document does not modify code; profiles beyond `vcc-decimal-v1` are **specified, not yet implemented**.
 
-Source of truth for what ships today: `docs/site-audit/vcc-standard-readiness-audit.md` §31.1.
+Source of truth for what ships today: the internal VCC standard-readiness audit (§31.1).
 
 ---
 

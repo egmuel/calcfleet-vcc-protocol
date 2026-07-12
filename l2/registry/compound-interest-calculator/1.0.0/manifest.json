@@ -1,0 +1,29 @@
+{
+  "id": "urn:vcc:formula:compound-interest-calculator",
+  "slug": "compound-interest-calculator",
+  "version": "1.0.0",
+  "entrypoint": "formula.py#compute",
+  "numericProfile": "vcc-decimal-v1",
+  "engine": {
+    "name": "calcfleet-l2-python",
+    "runtimeProfile": "python-deterministic-v1"
+  },
+  "inputs": {
+    "initialPrincipal": { "type": "money", "scale": 2, "unit": "USD" },
+    "monthlyContribution": { "type": "money", "scale": 2, "unit": "USD" },
+    "annualRatePct": { "type": "percent", "scale": 4, "unit": "%" },
+    "years": { "type": "duration", "scale": 2, "unit": "years" }
+  },
+  "outputs": {
+    "finalBalance": { "type": "money", "scale": 2, "unit": "USD" },
+    "totalContributed": { "type": "money", "scale": 2, "unit": "USD" },
+    "totalInterest": { "type": "money", "scale": 2, "unit": "USD" },
+    "yearlyTable[].year": { "type": "integer", "scale": 0 },
+    "yearlyTable[].balance": { "type": "money", "scale": 2, "unit": "USD" },
+    "yearlyTable[].contributed": { "type": "money", "scale": 2, "unit": "USD" },
+    "yearlyTable[].interest": { "type": "money", "scale": 2, "unit": "USD" }
+  },
+  "outputProjection": ["finalBalance", "totalContributed", "totalInterest", "yearlyTable"],
+  "roundingMode": "half-even",
+  "note": "L2 reference manifest. This describes the LOCAL Python reproduction of the compound-interest formula. The statement's formula.digest refers to the CalcFleet TypeScript manifest and is NOT recomputed here; L2 lookup is by (slug, version) against the local allowlist only (ADR-005). The math is pinned by vectors/compound-interest-calculator.json."
+}
