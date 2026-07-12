@@ -1,0 +1,20 @@
+{
+  "comment": "Negative conformance suite index (§21). Each entry is rejected by a conformant verifier with the pinned expected outcome. The badge 'VCC conformance tests passed' is technical only, NOT a legal certification.",
+  "base": "personal-loan-calculator.json",
+  "vectors": [
+    "invalid-signature.json",
+    "wrong-signature-payload.json",
+    "modified-payload-output.json",
+    "modified-payload-input.json",
+    "wrong-formula-digest.json",
+    "unknown-formula.json",
+    "canonicalization-mismatch.json",
+    "unsupported-profile.json",
+    "injected-extra-field.json",
+    "wrong-payload-type.json",
+    "unknown-key.json",
+    "revoked-key.json",
+    "withdrawn-certificate.json",
+    "unsupported-algorithm.json"
+  ]
+}

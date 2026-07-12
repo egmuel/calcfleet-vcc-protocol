@@ -1,0 +1,3 @@
+# VCC Python L1 verifier — only one non-stdlib dependency.
+# Ed25519 signature verification (SPKI/raw public keys).
+cryptography>=42,<50

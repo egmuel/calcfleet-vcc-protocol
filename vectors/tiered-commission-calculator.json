@@ -1,0 +1,146 @@
+{
+  "comment": "Golden VCC v0.2 vector. Signed with the PUBLIC test key (vectors/test-key.json) at a fixed issuedAt — verify offline, expect L1 valid and L2 match.",
+  "request": {
+    "slug": "tiered-commission-calculator",
+    "input": {
+      "revenue": 84300,
+      "tier1RatePct": 5,
+      "tier2RatePct": 7,
+      "tier2ThresholdAmount": 25000,
+      "adjustmentAmount": -250
+    }
+  },
+  "statement": {
+    "specVersion": "0.2",
+    "type": "https://vcc.dev/statement/calculation/v0.2",
+    "subject": {
+      "id": "urn:vcc:calculation:sha256:419cb9bf9fb1e6c3ccc3bdb25f755858942af2783aa7da06dd27598554c45b07",
+      "kind": "deterministic-calculation"
+    },
+    "issuer": {
+      "id": "https://calcfleet.com",
+      "name": "CalcFleet",
+      "keyDiscovery": "https://calcfleet.com/.well-known/vcc-issuer.json"
+    },
+    "formula": {
+      "id": "urn:vcc:formula:tiered-commission-calculator",
+      "slug": "tiered-commission-calculator",
+      "version": "1.2.0",
+      "digest": {
+        "algorithm": "sha-256",
+        "value": "9b531615c1a9deb76ec2566839ecb38365ecfc0b22ababbd5a0b99c5e89a38fe"
+      },
+      "registry": "https://calcfleet.com/vcc/registry/tiered-commission-calculator/1.2.0",
+      "visibility": "open"
+    },
+    "calculation": {
+      "inputs": {
+        "revenue": {
+          "type": "money",
+          "value": "84300.00",
+          "scale": 2,
+          "unit": "USD"
+        },
+        "tier1RatePct": {
+          "type": "percent",
+          "value": "5.0000",
+          "scale": 4,
+          "unit": "%"
+        },
+        "tier2RatePct": {
+          "type": "percent",
+          "value": "7.0000",
+          "scale": 4,
+          "unit": "%"
+        },
+        "tier2ThresholdAmount": {
+          "type": "money",
+          "value": "25000.00",
+          "scale": 2,
+          "unit": "USD"
+        },
+        "adjustmentAmount": {
+          "type": "money",
+          "value": "-250.00",
+          "scale": 2,
+          "unit": "USD"
+        }
+      },
+      "outputs": {
+        "grossCommission": {
+          "type": "money",
+          "value": "5401.00",
+          "scale": 2,
+          "unit": "USD"
+        },
+        "adjustment": {
+          "type": "money",
+          "value": "-250.00",
+          "scale": 2,
+          "unit": "USD"
+        },
+        "netCommission": {
+          "type": "money",
+          "value": "5151.00",
+          "scale": 2,
+          "unit": "USD"
+        },
+        "effectiveRatePct": {
+          "type": "percent",
+          "value": "6.1100",
+          "scale": 4,
+          "unit": "%"
+        }
+      },
+      "numericProfile": "vcc-decimal-v1"
+    },
+    "datasets": [],
+    "evidence": {
+      "sources": [],
+      "testsDigest": {
+        "algorithm": "sha-256",
+        "value": "21a2e9c8da14be7f11050f8a847093817a07c5ff68c05d09b8c6c9cf990859f2"
+      }
+    },
+    "engine": {
+      "name": "calcfleet-engine",
+      "version": "0.1.0",
+      "commit": "unknown",
+      "runtimeProfile": "node-deterministic-v1"
+    },
+    "attestation": {
+      "type": "execution",
+      "claims": [
+        "inputs-received",
+        "formula-executed",
+        "numeric-profile-applied",
+        "output-produced"
+      ]
+    },
+    "issuedAt": "2026-07-11T12:00:00Z",
+    "context": {
+      "surface": "api"
+    }
+  },
+  "canonicalStatement": "{\"attestation\":{\"claims\":[\"inputs-received\",\"formula-executed\",\"numeric-profile-applied\",\"output-produced\"],\"type\":\"execution\"},\"calculation\":{\"inputs\":{\"adjustmentAmount\":{\"scale\":2,\"type\":\"money\",\"unit\":\"USD\",\"value\":\"-250.00\"},\"revenue\":{\"scale\":2,\"type\":\"money\",\"unit\":\"USD\",\"value\":\"84300.00\"},\"tier1RatePct\":{\"scale\":4,\"type\":\"percent\",\"unit\":\"%\",\"value\":\"5.0000\"},\"tier2RatePct\":{\"scale\":4,\"type\":\"percent\",\"unit\":\"%\",\"value\":\"7.0000\"},\"tier2ThresholdAmount\":{\"scale\":2,\"type\":\"money\",\"unit\":\"USD\",\"value\":\"25000.00\"}},\"numericProfile\":\"vcc-decimal-v1\",\"outputs\":{\"adjustment\":{\"scale\":2,\"type\":\"money\",\"unit\":\"USD\",\"value\":\"-250.00\"},\"effectiveRatePct\":{\"scale\":4,\"type\":\"percent\",\"unit\":\"%\",\"value\":\"6.1100\"},\"grossCommission\":{\"scale\":2,\"type\":\"money\",\"unit\":\"USD\",\"value\":\"5401.00\"},\"netCommission\":{\"scale\":2,\"type\":\"money\",\"unit\":\"USD\",\"value\":\"5151.00\"}}},\"context\":{\"surface\":\"api\"},\"datasets\":[],\"engine\":{\"commit\":\"unknown\",\"name\":\"calcfleet-engine\",\"runtimeProfile\":\"node-deterministic-v1\",\"version\":\"0.1.0\"},\"evidence\":{\"sources\":[],\"testsDigest\":{\"algorithm\":\"sha-256\",\"value\":\"21a2e9c8da14be7f11050f8a847093817a07c5ff68c05d09b8c6c9cf990859f2\"}},\"formula\":{\"digest\":{\"algorithm\":\"sha-256\",\"value\":\"9b531615c1a9deb76ec2566839ecb38365ecfc0b22ababbd5a0b99c5e89a38fe\"},\"id\":\"urn:vcc:formula:tiered-commission-calculator\",\"registry\":\"https://calcfleet.com/vcc/registry/tiered-commission-calculator/1.2.0\",\"slug\":\"tiered-commission-calculator\",\"version\":\"1.2.0\",\"visibility\":\"open\"},\"issuedAt\":\"2026-07-11T12:00:00Z\",\"issuer\":{\"id\":\"https://calcfleet.com\",\"keyDiscovery\":\"https://calcfleet.com/.well-known/vcc-issuer.json\",\"name\":\"CalcFleet\"},\"specVersion\":\"0.2\",\"subject\":{\"id\":\"urn:vcc:calculation:sha256:419cb9bf9fb1e6c3ccc3bdb25f755858942af2783aa7da06dd27598554c45b07\",\"kind\":\"deterministic-calculation\"},\"type\":\"https://vcc.dev/statement/calculation/v0.2\"}",
+  "canonicalStatementSha256": "0f1c774b3692b5848afb7869eb7ef447bcc067ca135e803c1881c6e0a2375d1b",
+  "envelope": {
+    "payloadType": "application/vnd.vcc.statement+json;version=0.2",
+    "payload": "eyJhdHRlc3RhdGlvbiI6eyJjbGFpbXMiOlsiaW5wdXRzLXJlY2VpdmVkIiwiZm9ybXVsYS1leGVjdXRlZCIsIm51bWVyaWMtcHJvZmlsZS1hcHBsaWVkIiwib3V0cHV0LXByb2R1Y2VkIl0sInR5cGUiOiJleGVjdXRpb24ifSwiY2FsY3VsYXRpb24iOnsiaW5wdXRzIjp7ImFkanVzdG1lbnRBbW91bnQiOnsic2NhbGUiOjIsInR5cGUiOiJtb25leSIsInVuaXQiOiJVU0QiLCJ2YWx1ZSI6Ii0yNTAuMDAifSwicmV2ZW51ZSI6eyJzY2FsZSI6MiwidHlwZSI6Im1vbmV5IiwidW5pdCI6IlVTRCIsInZhbHVlIjoiODQzMDAuMDAifSwidGllcjFSYXRlUGN0Ijp7InNjYWxlIjo0LCJ0eXBlIjoicGVyY2VudCIsInVuaXQiOiIlIiwidmFsdWUiOiI1LjAwMDAifSwidGllcjJSYXRlUGN0Ijp7InNjYWxlIjo0LCJ0eXBlIjoicGVyY2VudCIsInVuaXQiOiIlIiwidmFsdWUiOiI3LjAwMDAifSwidGllcjJUaHJlc2hvbGRBbW91bnQiOnsic2NhbGUiOjIsInR5cGUiOiJtb25leSIsInVuaXQiOiJVU0QiLCJ2YWx1ZSI6IjI1MDAwLjAwIn19LCJudW1lcmljUHJvZmlsZSI6InZjYy1kZWNpbWFsLXYxIiwib3V0cHV0cyI6eyJhZGp1c3RtZW50Ijp7InNjYWxlIjoyLCJ0eXBlIjoibW9uZXkiLCJ1bml0IjoiVVNEIiwidmFsdWUiOiItMjUwLjAwIn0sImVmZmVjdGl2ZVJhdGVQY3QiOnsic2NhbGUiOjQsInR5cGUiOiJwZXJjZW50IiwidW5pdCI6IiUiLCJ2YWx1ZSI6IjYuMTEwMCJ9LCJncm9zc0NvbW1pc3Npb24iOnsic2NhbGUiOjIsInR5cGUiOiJtb25leSIsInVuaXQiOiJVU0QiLCJ2YWx1ZSI6IjU0MDEuMDAifSwibmV0Q29tbWlzc2lvbiI6eyJzY2FsZSI6MiwidHlwZSI6Im1vbmV5IiwidW5pdCI6IlVTRCIsInZhbHVlIjoiNTE1MS4wMCJ9fX0sImNvbnRleHQiOnsic3VyZmFjZSI6ImFwaSJ9LCJkYXRhc2V0cyI6W10sImVuZ2luZSI6eyJjb21taXQiOiJ1bmtub3duIiwibmFtZSI6ImNhbGNmbGVldC1lbmdpbmUiLCJydW50aW1lUHJvZmlsZSI6Im5vZGUtZGV0ZXJtaW5pc3RpYy12MSIsInZlcnNpb24iOiIwLjEuMCJ9LCJldmlkZW5jZSI6eyJzb3VyY2VzIjpbXSwidGVzdHNEaWdlc3QiOnsiYWxnb3JpdGhtIjoic2hhLTI1NiIsInZhbHVlIjoiMjFhMmU5YzhkYTE0YmU3ZjExMDUwZjhhODQ3MDkzODE3YTA3YzVmZjY4YzA1ZDA5YjhjNmM5Y2Y5OTA4NTlmMiJ9fSwiZm9ybXVsYSI6eyJkaWdlc3QiOnsiYWxnb3JpdGhtIjoic2hhLTI1NiIsInZhbHVlIjoiOWI1MzE2MTVjMWE5ZGViNzZlYzI1NjY4MzllY2IzODM2NWVjZmMwYjIyYWJhYmJkNWEwYjk5YzVlODlhMzhmZSJ9LCJpZCI6InVybjp2Y2M6Zm9ybXVsYTp0aWVyZWQtY29tbWlzc2lvbi1jYWxjdWxhdG9yIiwicmVnaXN0cnkiOiJodHRwczovL2NhbGNmbGVldC5jb20vdmNjL3JlZ2lzdHJ5L3RpZXJlZC1jb21taXNzaW9uLWNhbGN1bGF0b3IvMS4yLjAiLCJzbHVnIjoidGllcmVkLWNvbW1pc3Npb24tY2FsY3VsYXRvciIsInZlcnNpb24iOiIxLjIuMCIsInZpc2liaWxpdHkiOiJvcGVuIn0sImlzc3VlZEF0IjoiMjAyNi0wNy0xMVQxMjowMDowMFoiLCJpc3N1ZXIiOnsiaWQiOiJodHRwczovL2NhbGNmbGVldC5jb20iLCJrZXlEaXNjb3ZlcnkiOiJodHRwczovL2NhbGNmbGVldC5jb20vLndlbGwta25vd24vdmNjLWlzc3Vlci5qc29uIiwibmFtZSI6IkNhbGNGbGVldCJ9LCJzcGVjVmVyc2lvbiI6IjAuMiIsInN1YmplY3QiOnsiaWQiOiJ1cm46dmNjOmNhbGN1bGF0aW9uOnNoYTI1Njo0MTljYjliZjlmYjFlNmMzY2NjM2JkYjI1Zjc1NTg1ODk0MmFmMjc4M2FhN2RhMDZkZDI3NTk4NTU0YzQ1YjA3Iiwia2luZCI6ImRldGVybWluaXN0aWMtY2FsY3VsYXRpb24ifSwidHlwZSI6Imh0dHBzOi8vdmNjLmRldi9zdGF0ZW1lbnQvY2FsY3VsYXRpb24vdjAuMiJ9",
+    "signatures": [
+      {
+        "keyid": "test-2026-07",
+        "sig": "GS/2jrphFHgOxhhnoZ0er3RVzo4T9JpGMVb/PaNFRqSHa8lLBdp9KX98fGOxivI78p0zRlsZoMBWoKShqa06Dg=="
+      }
+    ]
+  },
+  "expected": {
+    "l1": {
+      "cryptographicValidity": true,
+      "trustedAtVerificationTime": true
+    },
+    "l2": {
+      "status": "match"
+    }
+  }
+}
