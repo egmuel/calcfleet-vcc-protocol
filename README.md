@@ -16,6 +16,13 @@ L2 reproduction is included as a reference for the compound-interest formula
 > but the point of this repository is that you can implement and verify VCC
 > **without** CalcFleet's services.
 
+## Start here
+
+- [`examples/`](examples/) — **download a signed receipt, verify it offline, break it, reproduce it** (real receipts, real commands, real outputs).
+- [`VISION.md`](VISION.md) — why calculation evidence: "a spreadsheet is not evidence", what VCC makes possible, and what it explicitly is not.
+- [`ROADMAP.md`](ROADMAP.md) — what is shipped vs designed vs idea, by phase, without dates.
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — run the conformance suites, propose a vector, report a security issue.
+
 ## What a valid receipt proves — and does not
 
 A valid signature establishes **integrity** (the receipt was not altered) and
@@ -34,6 +41,7 @@ decision. See [`spec/trust-model.md`](spec/trust-model.md) and
 | [`vectors/`](vectors/) | Conformance test vectors: 4 valid golden receipts + 15 negative cases (invalid signature, modified payload, wrong digest, unknown formula, revoked key, …), each pinning the axis that must fail. |
 | [`verifiers/typescript/`](verifiers/typescript/) | Reference verifier in TypeScript (offline, WebCrypto). |
 | [`verifiers/python/`](verifiers/python/) | An **independent** verifier in Python (from scratch, offline). |
+| [`examples/`](examples/) | Runnable examples: real signed receipts (commissions, finance, housing) with verify / break / reproduce walkthroughs. |
 
 ## Two independent verifiers (why it matters)
 

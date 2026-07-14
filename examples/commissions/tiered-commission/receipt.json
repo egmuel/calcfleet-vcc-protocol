@@ -1,0 +1,124 @@
+{
+  "statement": {
+    "specVersion": "0.2",
+    "type": "https://calcfleet.com/vcc/statement/calculation/v0.2",
+    "subject": {
+      "id": "urn:vcc:calculation:sha256:0bafb630c358f3b2fb384dc0de7fc39b9174dda6c5f959c44c657d9e5b64f626",
+      "kind": "deterministic-calculation"
+    },
+    "issuer": {
+      "id": "https://calcfleet.com",
+      "name": "CalcFleet",
+      "keyDiscovery": "https://calcfleet.com/.well-known/vcc-issuer.json"
+    },
+    "formula": {
+      "id": "urn:vcc:formula:tiered-commission-calculator",
+      "slug": "tiered-commission-calculator",
+      "version": "1.2.0",
+      "digest": {
+        "algorithm": "sha-256",
+        "value": "9b531615c1a9deb76ec2566839ecb38365ecfc0b22ababbd5a0b99c5e89a38fe"
+      },
+      "registry": "https://calcfleet.com/vcc/registry/tiered-commission-calculator/1.2.0",
+      "visibility": "open"
+    },
+    "calculation": {
+      "inputs": {
+        "revenue": {
+          "type": "money",
+          "value": "84300.00",
+          "scale": 2,
+          "unit": "USD"
+        },
+        "tier1RatePct": {
+          "type": "percent",
+          "value": "5.0000",
+          "scale": 4,
+          "unit": "%"
+        },
+        "tier2RatePct": {
+          "type": "percent",
+          "value": "7.0000",
+          "scale": 4,
+          "unit": "%"
+        },
+        "tier2ThresholdAmount": {
+          "type": "money",
+          "value": "25000.00",
+          "scale": 2,
+          "unit": "USD"
+        },
+        "adjustmentAmount": {
+          "type": "money",
+          "value": "-250.00",
+          "scale": 2,
+          "unit": "USD"
+        }
+      },
+      "outputs": {
+        "grossCommission": {
+          "type": "money",
+          "value": "5401.00",
+          "scale": 2,
+          "unit": "USD"
+        },
+        "adjustment": {
+          "type": "money",
+          "value": "-250.00",
+          "scale": 2,
+          "unit": "USD"
+        },
+        "netCommission": {
+          "type": "money",
+          "value": "5151.00",
+          "scale": 2,
+          "unit": "USD"
+        },
+        "effectiveRatePct": {
+          "type": "percent",
+          "value": "6.1100",
+          "scale": 4,
+          "unit": "%"
+        }
+      },
+      "numericProfile": "vcc-decimal-v1"
+    },
+    "datasets": [],
+    "evidence": {
+      "sources": [],
+      "testsDigest": {
+        "algorithm": "sha-256",
+        "value": "21a2e9c8da14be7f11050f8a847093817a07c5ff68c05d09b8c6c9cf990859f2"
+      }
+    },
+    "engine": {
+      "name": "calcfleet-engine",
+      "version": "0.1.0",
+      "commit": "unknown",
+      "runtimeProfile": "node-deterministic-v1"
+    },
+    "attestation": {
+      "type": "execution",
+      "claims": [
+        "inputs-received",
+        "formula-executed",
+        "numeric-profile-applied",
+        "output-produced"
+      ]
+    },
+    "issuedAt": "2026-07-11T12:00:00Z",
+    "context": {
+      "surface": "api"
+    }
+  },
+  "envelope": {
+    "payloadType": "application/vnd.vcc.statement+json;version=0.2",
+    "payload": "eyJhdHRlc3RhdGlvbiI6eyJjbGFpbXMiOlsiaW5wdXRzLXJlY2VpdmVkIiwiZm9ybXVsYS1leGVjdXRlZCIsIm51bWVyaWMtcHJvZmlsZS1hcHBsaWVkIiwib3V0cHV0LXByb2R1Y2VkIl0sInR5cGUiOiJleGVjdXRpb24ifSwiY2FsY3VsYXRpb24iOnsiaW5wdXRzIjp7ImFkanVzdG1lbnRBbW91bnQiOnsic2NhbGUiOjIsInR5cGUiOiJtb25leSIsInVuaXQiOiJVU0QiLCJ2YWx1ZSI6Ii0yNTAuMDAifSwicmV2ZW51ZSI6eyJzY2FsZSI6MiwidHlwZSI6Im1vbmV5IiwidW5pdCI6IlVTRCIsInZhbHVlIjoiODQzMDAuMDAifSwidGllcjFSYXRlUGN0Ijp7InNjYWxlIjo0LCJ0eXBlIjoicGVyY2VudCIsInVuaXQiOiIlIiwidmFsdWUiOiI1LjAwMDAifSwidGllcjJSYXRlUGN0Ijp7InNjYWxlIjo0LCJ0eXBlIjoicGVyY2VudCIsInVuaXQiOiIlIiwidmFsdWUiOiI3LjAwMDAifSwidGllcjJUaHJlc2hvbGRBbW91bnQiOnsic2NhbGUiOjIsInR5cGUiOiJtb25leSIsInVuaXQiOiJVU0QiLCJ2YWx1ZSI6IjI1MDAwLjAwIn19LCJudW1lcmljUHJvZmlsZSI6InZjYy1kZWNpbWFsLXYxIiwib3V0cHV0cyI6eyJhZGp1c3RtZW50Ijp7InNjYWxlIjoyLCJ0eXBlIjoibW9uZXkiLCJ1bml0IjoiVVNEIiwidmFsdWUiOiItMjUwLjAwIn0sImVmZmVjdGl2ZVJhdGVQY3QiOnsic2NhbGUiOjQsInR5cGUiOiJwZXJjZW50IiwidW5pdCI6IiUiLCJ2YWx1ZSI6IjYuMTEwMCJ9LCJncm9zc0NvbW1pc3Npb24iOnsic2NhbGUiOjIsInR5cGUiOiJtb25leSIsInVuaXQiOiJVU0QiLCJ2YWx1ZSI6IjU0MDEuMDAifSwibmV0Q29tbWlzc2lvbiI6eyJzY2FsZSI6MiwidHlwZSI6Im1vbmV5IiwidW5pdCI6IlVTRCIsInZhbHVlIjoiNTE1MS4wMCJ9fX0sImNvbnRleHQiOnsic3VyZmFjZSI6ImFwaSJ9LCJkYXRhc2V0cyI6W10sImVuZ2luZSI6eyJjb21taXQiOiJ1bmtub3duIiwibmFtZSI6ImNhbGNmbGVldC1lbmdpbmUiLCJydW50aW1lUHJvZmlsZSI6Im5vZGUtZGV0ZXJtaW5pc3RpYy12MSIsInZlcnNpb24iOiIwLjEuMCJ9LCJldmlkZW5jZSI6eyJzb3VyY2VzIjpbXSwidGVzdHNEaWdlc3QiOnsiYWxnb3JpdGhtIjoic2hhLTI1NiIsInZhbHVlIjoiMjFhMmU5YzhkYTE0YmU3ZjExMDUwZjhhODQ3MDkzODE3YTA3YzVmZjY4YzA1ZDA5YjhjNmM5Y2Y5OTA4NTlmMiJ9fSwiZm9ybXVsYSI6eyJkaWdlc3QiOnsiYWxnb3JpdGhtIjoic2hhLTI1NiIsInZhbHVlIjoiOWI1MzE2MTVjMWE5ZGViNzZlYzI1NjY4MzllY2IzODM2NWVjZmMwYjIyYWJhYmJkNWEwYjk5YzVlODlhMzhmZSJ9LCJpZCI6InVybjp2Y2M6Zm9ybXVsYTp0aWVyZWQtY29tbWlzc2lvbi1jYWxjdWxhdG9yIiwicmVnaXN0cnkiOiJodHRwczovL2NhbGNmbGVldC5jb20vdmNjL3JlZ2lzdHJ5L3RpZXJlZC1jb21taXNzaW9uLWNhbGN1bGF0b3IvMS4yLjAiLCJzbHVnIjoidGllcmVkLWNvbW1pc3Npb24tY2FsY3VsYXRvciIsInZlcnNpb24iOiIxLjIuMCIsInZpc2liaWxpdHkiOiJvcGVuIn0sImlzc3VlZEF0IjoiMjAyNi0wNy0xMVQxMjowMDowMFoiLCJpc3N1ZXIiOnsiaWQiOiJodHRwczovL2NhbGNmbGVldC5jb20iLCJrZXlEaXNjb3ZlcnkiOiJodHRwczovL2NhbGNmbGVldC5jb20vLndlbGwta25vd24vdmNjLWlzc3Vlci5qc29uIiwibmFtZSI6IkNhbGNGbGVldCJ9LCJzcGVjVmVyc2lvbiI6IjAuMiIsInN1YmplY3QiOnsiaWQiOiJ1cm46dmNjOmNhbGN1bGF0aW9uOnNoYTI1NjowYmFmYjYzMGMzNThmM2IyZmIzODRkYzBkZTdmYzM5YjkxNzRkZGE2YzVmOTU5YzQ0YzY1N2Q5ZTViNjRmNjI2Iiwia2luZCI6ImRldGVybWluaXN0aWMtY2FsY3VsYXRpb24ifSwidHlwZSI6Imh0dHBzOi8vY2FsY2ZsZWV0LmNvbS92Y2Mvc3RhdGVtZW50L2NhbGN1bGF0aW9uL3YwLjIifQ==",
+    "signatures": [
+      {
+        "keyid": "test-2026-07",
+        "sig": "FNxVahjiRP/RCWNSSBRjRU1kqbBGwqQNVWDEcsXmwLhHVuEE9AOL+fm6Exg2nk2ke4VA7gbsCZxHdT/Mh/+kAw=="
+      }
+    ]
+  }
+}
