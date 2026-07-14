@@ -15,7 +15,6 @@
     "datasets",
     "evidence",
     "engine",
-    "attestation",
     "issuedAt",
     "context"
   ],
@@ -235,7 +234,7 @@
       }
     },
     "attestation": {
-      "$comment": "attestationSchema in schemas.ts. uniqueItems covers claim-uniqueness. CONTRACT §5 required-claims-by-type (execution/reproduction/review) is a cross-field rule between type and claims; expressed here with if/then/contains for each type, mirroring the verifier superRefine.",
+      "$comment": "attestationSchema in schemas.ts. §42: additive — verifiers MUST accept pre-§42 statements without attestation (the field is deliberately NOT in top-level required); issuers SHOULD always include it. When present it is validated in full. uniqueItems covers claim-uniqueness. CONTRACT §5 required-claims-by-type (execution/reproduction/review) is a cross-field rule between type and claims; expressed here with if/then/contains for each type, mirroring the verifier superRefine.",
       "type": "object",
       "additionalProperties": false,
       "required": ["type", "claims"],

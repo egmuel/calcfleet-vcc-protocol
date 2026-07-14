@@ -15,7 +15,7 @@ export const VCC_ATTESTATION_JSON_SCHEMA = {
   $id: "https://calcfleet.com/vcc/schema/attestation/v0.2.json",
   title: "VCC Issuer Attestation (v0.2)",
   description:
-    "What the issuer explicitly attests to on a receipt. Part of the signed statement. Each claim is a fact the issuer performed, never a claim about the world (spec master §42). `type` names the receipt category (§43).",
+    "What the issuer explicitly attests to on a receipt. Part of the signed statement when present. Additive (§42): verifiers MUST accept statements that omit the block (issued before its introduction); issuers SHOULD always include it. Each claim is a fact the issuer performed, never a claim about the world (spec master §42). `type` names the receipt category (§43).",
   type: "object",
   additionalProperties: false,
   required: ["type", "claims"],

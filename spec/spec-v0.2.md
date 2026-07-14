@@ -60,6 +60,8 @@ Digest values are lowercase hex (64 chars for sha-256); the algorithm is always 
 
 The `attestation` block (added v0.2, spec master §42–43; full rationale in `data-model.md`) states **what the issuer attests to** and is part of the signed statement. `type` is the receipt category — `execution` | `reproduction` | `review` (§43); CalcFleet emits only `execution`. `claims` are facts the issuer *performed* (`datasets-used` appears only when datasets were referenced), never claims about the world (inputs are true, formula is appropriate) — those are explicitly **not** attested.
 
+The block is **additive** (§42): verifiers MUST accept statements that omit `attestation` — v0.2 receipts issued before its introduction remain verifiable, which is the protocol's core promise — and issuers SHOULD always include it in newly issued statements. When present, the block is validated in full (shape, claim uniqueness, required claims per type, the `datasets-used` biconditional); a malformed block still fails validation.
+
 ## 3. Numeric profile `vcc-decimal-v1`
 
 Every numeric leaf under `calculation.inputs`/`calculation.outputs` is a typed value:

@@ -77,7 +77,11 @@ def main() -> int:
         validator = validators[pfx]
         instance = load_json(path)
         errors = sorted(validator.iter_errors(instance), key=lambda e: e.path)
-        is_valid_example = ".valid." in name
+        # Naming: <prefix>.valid[-reason].json passes; <prefix>.invalid-reason.json
+        # is rejected. Classify on the segment after the prefix, not substring
+        # matching ("invalid" contains "valid").
+        kind = name[len(pfx) + 1 :].split(".")[0]
+        is_valid_example = kind == "valid" or kind.startswith("valid-")
         if is_valid_example:
             if errors:
                 failures.append(f"{name}: expected VALID but got errors")

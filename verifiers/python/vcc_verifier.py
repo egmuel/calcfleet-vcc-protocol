@@ -439,7 +439,10 @@ def validate_statement(st: Any) -> bool:
         "specVersion", "type", "subject", "issuer", "formula", "calculation",
         "datasets", "evidence", "engine", "attestation", "issuedAt", "context",
     }
-    if not _strict_keys(st, top, top):
+    # §42: additive — verifiers MUST accept pre-§42 statements without
+    # attestation; issuers SHOULD always include it. When present, the block
+    # is validated in full below.
+    if not _strict_keys(st, top, top - {"attestation"}):
         return False
     if st["specVersion"] != VCC_SPEC_VERSION or st["type"] != VCC_STATEMENT_TYPE:
         return False
@@ -530,18 +533,19 @@ def validate_statement(st: Any) -> bool:
     if eng["runtimeProfile"] != VCC_RUNTIME_PROFILE:
         return False
 
-    att = st["attestation"]
-    if not _strict_keys(att, {"type", "claims"}, {"type", "claims"}):
-        return False
-    if att["type"] not in ATTESTATION_TYPES:
-        return False
-    claims = att["claims"]
-    if not (isinstance(claims, list) and 1 <= len(claims) <= 16):
-        return False
-    if any(c not in ATTESTATION_CLAIMS for c in claims):
-        return False
-    if len(set(claims)) != len(claims):
-        return False
+    att = st.get("attestation")
+    if att is not None:
+        if not _strict_keys(att, {"type", "claims"}, {"type", "claims"}):
+            return False
+        if att["type"] not in ATTESTATION_TYPES:
+            return False
+        claims = att["claims"]
+        if not (isinstance(claims, list) and 1 <= len(claims) <= 16):
+            return False
+        if any(c not in ATTESTATION_CLAIMS for c in claims):
+            return False
+        if len(set(claims)) != len(claims):
+            return False
 
     if not is_valid_utc_timestamp(st["issuedAt"]):
         return False
@@ -557,16 +561,19 @@ def validate_statement(st: Any) -> bool:
     # Cross-field semantic invariants (mirror statementSchema.superRefine).
     if f["id"] != "urn:vcc:formula:" + f["slug"]:
         return False
-    claims_set = set(claims)
-    if ("datasets-used" in claims_set) != (len(ds) > 0):
-        return False
-    required_by_type = {
-        "execution": {"inputs-received", "formula-executed", "output-produced"},
-        "reproduction": {"formula-executed", "output-produced"},
-        "review": {"formula-executed"},
-    }
-    if not required_by_type.get(att["type"], set()).issubset(claims_set):
-        return False
+    # Attestation cross-field rules apply only when the block is present
+    # (§42: pre-§42 statements omit it and MUST still validate).
+    if att is not None:
+        claims_set = set(att["claims"])
+        if ("datasets-used" in claims_set) != (len(ds) > 0):
+            return False
+        required_by_type = {
+            "execution": {"inputs-received", "formula-executed", "output-produced"},
+            "reproduction": {"formula-executed", "output-produced"},
+            "review": {"formula-executed"},
+        }
+        if not required_by_type.get(att["type"], set()).issubset(claims_set):
+            return False
     if len(calc["inputs"]) == 0 or len(calc["outputs"]) == 0:
         return False
 

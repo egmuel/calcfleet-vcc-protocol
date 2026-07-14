@@ -275,7 +275,11 @@ export const statementSchema = z.strictObject({
     commit: z.string().regex(/^([0-9a-f]{7,40}|unknown)$/),
     runtimeProfile: z.literal(VCC_RUNTIME_PROFILE),
   }),
-  attestation: attestationSchema,
+  // §42: additive — verifiers MUST accept pre-§42 statements without
+  // attestation; issuers SHOULD always include it. Statements signed before
+  // the block was introduced remain verifiable forever (the core promise);
+  // when present, the block is validated in full.
+  attestation: attestationSchema.optional(),
   issuedAt: z.string().refine(isValidUtcTimestamp, {
     message: "issuedAt is not a valid UTC timestamp",
   }),
@@ -296,30 +300,34 @@ export const statementSchema = z.strictObject({
     });
   }
 
-  // `datasets-used` is claimed IFF datasets are actually referenced (spec §).
-  const claimsDatasets = st.attestation.claims.includes("datasets-used");
-  const hasDatasets = st.datasets.length > 0;
-  if (claimsDatasets !== hasDatasets) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["attestation", "claims"],
-      message: "datasets-used must be claimed exactly when datasets are present",
-    });
-  }
-
-  // Minimum claims each attestation type must carry.
-  const required: Record<string, readonly string[]> = {
-    execution: ["inputs-received", "formula-executed", "output-produced"],
-    reproduction: ["formula-executed", "output-produced"],
-    review: ["formula-executed"],
-  };
-  for (const claim of required[st.attestation.type] ?? []) {
-    if (!st.attestation.claims.includes(claim as (typeof st.attestation.claims)[number])) {
+  // Attestation cross-field rules apply only when the block is present
+  // (§42: pre-§42 statements omit it and MUST still validate).
+  if (st.attestation !== undefined) {
+    // `datasets-used` is claimed IFF datasets are actually referenced (spec §).
+    const claimsDatasets = st.attestation.claims.includes("datasets-used");
+    const hasDatasets = st.datasets.length > 0;
+    if (claimsDatasets !== hasDatasets) {
       ctx.addIssue({
         code: "custom",
         path: ["attestation", "claims"],
-        message: `${st.attestation.type} attestation must include claim "${claim}"`,
+        message: "datasets-used must be claimed exactly when datasets are present",
       });
+    }
+
+    // Minimum claims each attestation type must carry.
+    const required: Record<string, readonly string[]> = {
+      execution: ["inputs-received", "formula-executed", "output-produced"],
+      reproduction: ["formula-executed", "output-produced"],
+      review: ["formula-executed"],
+    };
+    for (const claim of required[st.attestation.type] ?? []) {
+      if (!st.attestation.claims.includes(claim as (typeof st.attestation.claims)[number])) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["attestation", "claims"],
+          message: `${st.attestation.type} attestation must include claim "${claim}"`,
+        });
+      }
     }
   }
 

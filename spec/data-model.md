@@ -47,6 +47,14 @@ invalidates the signature. Before v0.2 these facts were only *implicit* in the
 statement's semantics; the block makes them a machine-readable list a verifier
 can name.
 
+The block is **additive** (§42): verifiers MUST accept statements that omit
+`attestation` — receipts issued before its introduction MUST keep validating
+against the statement schema, or the re-verifiable-over-years promise breaks —
+and issuers SHOULD always include it in newly issued statements. When the block
+is present it is validated in full; a malformed one (wrong shape, duplicate
+claims, missing required claims for its type) fails validation exactly as
+before.
+
 ### `type` — receipt type (§43)
 
 Names *who attests to what*, so the three categories are never collapsed under
@@ -83,6 +91,12 @@ positive claims, and are the reason `claims` only ever lists performed facts.
 
 ## Changelog
 
+- **v0.2 (2026-07: attestation made optional in verification)** — normative
+  fix: `attestation` was specified as additive (§42) but the schemas required
+  it, so v0.2 receipts issued before the block existed stopped verifying (seen
+  in production). Verifiers MUST accept statements without `attestation`;
+  issuers SHOULD always include it; when present it is validated in full. No
+  cryptography or canonicalization change — signed bytes are untouched.
 - **v0.2 (this change)** — additive: introduced the top-level `attestation`
   block (`type` + `claims`) with receipt types `execution` | `reproduction` |
   `review` (only `execution` emitted). Changed the signed statement content →
