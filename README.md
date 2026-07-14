@@ -38,7 +38,7 @@ decision. See [`spec/trust-model.md`](spec/trust-model.md) and
 | [`spec/`](spec/) | The normative specification: data model, numeric profiles, formula packages, dataset manifests, assurance & trust models, privacy profiles, conformance, security/threat model, governance, the interoperability report, and integration guides. |
 | [`adr/`](adr/) | Architecture Decision Records — the decision log (§ envelope, numeric semantics, formula identity, key management, L2 reproduction, storage, privacy). |
 | [`schema/`](schema/) | Portable JSON Schema for the receipt. A full standalone JSON Schema covering the statement, envelope, and keyset is being added. |
-| [`vectors/`](vectors/) | Conformance test vectors: 4 valid golden receipts + 15 negative cases (invalid signature, modified payload, wrong digest, unknown formula, revoked key, …), each pinning the axis that must fail. |
+| [`vectors/`](vectors/) | Conformance test vectors: 4 valid golden receipts + 24 negative cases (invalid signature, modified payload, wrong digest, unknown formula, revoked key, …), each pinning the axis that must fail. |
 | [`verifiers/typescript/`](verifiers/typescript/) | Reference verifier in TypeScript (offline, WebCrypto). |
 | [`verifiers/python/`](verifiers/python/) | An **independent** verifier in Python (from scratch, offline). |
 | [`examples/`](examples/) | Runnable examples: real signed receipts (commissions, finance, housing) with verify / break / reproduce walkthroughs. |
